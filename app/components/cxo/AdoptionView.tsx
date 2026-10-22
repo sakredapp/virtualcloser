@@ -22,6 +22,7 @@ import {
 } from '@/lib/cxoAdoptionShared'
 import { BarList, Columns, INK, SILVER, Sparkline } from './charts'
 import { Info } from './TeamRetention'
+import { CxStatTile, StatRow } from './report-kit'
 import './adoption.css'
 import { useAssistantName } from '@/app/components/AssistantNameProvider'
 import { withAssistantName } from '@/lib/assistantName'
@@ -261,24 +262,12 @@ function Drawer({ person, today, tz, onClose }: { person: AdoptionPerson; today:
           <button type="button" className="cx-adopt-x" onClick={onClose} aria-label="Close">×</button>
         </header>
 
-        <div className="cx-adopt-figs">
-          <div>
-            <div className="cx-kpi-figure">{lastSeenWords(person.last_seen, today, tz)}</div>
-            <div className="cx-kpi-sub">last seen</div>
-          </div>
-          <div>
-            <div className="cx-kpi-figure">{person.days7}</div>
-            <div className="cx-kpi-sub">days of last 7</div>
-          </div>
-          <div>
-            <div className="cx-kpi-figure">{person.days30}</div>
-            <div className="cx-kpi-sub">days of last 30</div>
-          </div>
-          <div>
-            <div className="cx-kpi-figure">{count(person.mira30)}</div>
-            <div className="cx-kpi-sub">{assistantName} questions</div>
-          </div>
-        </div>
+        <StatRow look="cx" cols={4} size="sm" fitChars={11} gap="10px" style={{ margin: '14px 0 4px' }} testId="cx-adopt-figs">
+          <CxStatTile label="Last seen" value={lastSeenWords(person.last_seen, today, tz)} />
+          <CxStatTile label="Days of last 7" value={person.days7} />
+          <CxStatTile label="Days of last 30" value={person.days30} />
+          <CxStatTile label={`${assistantName} questions`} value={count(person.mira30)} />
+        </StatRow>
 
         <div className="cx-eyebrow cx-adopt-h">Last 30 days</div>
         <div className="cx-adopt-strip" role="img" aria-label={`Active on ${person.days30} of the last 30 days`}>

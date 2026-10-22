@@ -154,11 +154,10 @@
   .cxu-cov li { grid-template-columns: minmax(0, 1fr) auto; }
   .cxu-cov .p { grid-column: 1 / -1; grid-row: 2; }
 }
-.cxu-kpis { display: grid; gap: 12px; margin-top: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr)); }
-.cxu-kpis > div { border: 1px solid var(--cx-line); border-radius: 12px; padding: 12px 14px; min-width: 0; }
+/* Agency profit row: the shared StatRow (report-kit) lays it out; this is the box. */
+.cxu-kpis { margin-top: 12px; }
+.cxu-kpis > .cx-stat-tile { border: 1px solid var(--cx-line); border-radius: 12px; padding: 12px 14px; min-width: 0; }
 .cxu-kpis .cx-eyebrow { color: var(--cx-muted); margin: 0; }
-.cxu-kpis .cx-kpi-figure { font-size: 24px; }
-.cxu-kpis .cx-kpi-sub { overflow-wrap: anywhere; }
 
 /* Sales Plan overview (2026-10-20): empty states, progress rows, month strip, pacing, tier rail. Black/silver only. */
 .cxp-emptycard { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 16px; }

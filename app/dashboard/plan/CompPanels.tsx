@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { Columns, INK, SILVER } from '@/app/components/cxo/charts'
+import { CxStatTile, StatRow } from '@/app/components/cxo/report-kit'
 import { fmtMoney, fmtPct } from '@/lib/pinnacle/kpis'
 import type { PlanPageData } from '@/lib/plan/data'
 import { MONTHS, allowanceStatus, asOfDay, matchActual, periodElapsed, quarterOf } from '@/lib/plan/shared'
@@ -117,28 +118,16 @@ export function ProfitPanel({ data }: { data: PlanPageData }) {
           <p>Premium × override spread (agency comp − agent payout, at the top agent level). Actuals are an estimate: the book splits premium by carrier or by product, not both.</p>
         </div>
       </div>
-      <div className="cxu-kpis">
-        <div>
-          <p className="cx-eyebrow">{year} plan profit</p>
-          <div className="cx-kpi-figure">{fmtMoney(s.total)}</div>
-          <div className="cx-kpi-sub">on {fmtMoney(s.planPremium)} plan premium</div>
-        </div>
-        <div>
-          <p className="cx-eyebrow">Profit so far (est.)</p>
-          <div className="cx-kpi-figure">{future ? '—' : fmtMoney(actualToDate)}</div>
-          <div className="cx-kpi-sub">{future ? `Starts Jan 1, ${year}` : `Plan to date ${fmtMoney(planToDate)}`}</div>
-        </div>
-        <div>
-          <p className="cx-eyebrow">Blended spread</p>
-          <div className="cx-kpi-figure">{pts(s.blendedSpread)}</div>
-          <div className="cx-kpi-sub">{fmtPct(s.coverage)} of plan premium has a comp grid</div>
-        </div>
-        <div>
-          <p className="cx-eyebrow">Marketing allowance</p>
-          <div className="cx-kpi-figure">{allowance ? fmtMoney(allowance.earned) : '—'}</div>
-          <div className="cx-kpi-sub">{allowance ? `Earned this period; on pace for ${fmtMoney(allowance.onPace)}` : current ? 'No allowance tiers with a dollar amount' : 'Counts in the current year'}</div>
-        </div>
-      </div>
+      <StatRow look="cx" cols={4} size="md" gap="12px" className="cxu-kpis" testId="cxu-kpis">
+        <CxStatTile label={`${year} plan profit`} value={fmtMoney(s.total)} sub={`on ${fmtMoney(s.planPremium)} plan premium`} />
+        <CxStatTile label="Profit so far (est.)" value={future ? null : fmtMoney(actualToDate)} empty="Not started" sub={future ? `Starts Jan 1, ${year}` : `Plan to date ${fmtMoney(planToDate)}`} />
+        <CxStatTile label="Blended spread" value={pts(s.blendedSpread)} sub={`${fmtPct(s.coverage)} of plan premium has a comp grid`} />
+        <CxStatTile
+          label="Marketing allowance"
+          value={allowance ? fmtMoney(allowance.earned) : null}
+          sub={allowance ? `Earned this period; on pace for ${fmtMoney(allowance.onPace)}` : current ? 'No allowance tiers with a dollar amount' : 'Counts in the current year'}
+        />
+      </StatRow>
 
       <div className="cxp-head" style={{ marginTop: 14 }}>
         <p style={{ margin: 0 }}>Profit by month</p>

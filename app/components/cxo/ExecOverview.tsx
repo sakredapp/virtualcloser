@@ -44,6 +44,7 @@ import {
   DAY,
 } from '@/lib/pinnacle/kpis'
 import TeamPeople from './TeamPeople'
+import { CxStatTile, StatRow } from './report-kit'
 import type { PeopleStats } from '@/lib/pinnacle/people'
 import TeamWriting from './TeamWriting'
 import { BarList, Columns, DayBars, Donut, ERROR, INK, INK_TINT, INK_TINT_2, INK_TINT_3, PaceMeter, POINT, SILVER, Sparkline, StackedArea, StageBars, WaveChart } from './charts'
@@ -131,17 +132,16 @@ function Scope({ scope, through }: { scope: string; through: string | null }) {
 }
 
 function Kpi({ eyebrow, figure, sub, d, suffix, spark, color = INK, scope, through }: { eyebrow: string; figure: string; sub?: string; d: Delta; suffix?: string; spark: number[]; color?: string; scope: string; through: string | null }) {
+  // Label, figure and sub are the shared stat row's aligned slots; the delta,
+  // spark and scope sit under them (Nick 2026-10-21: rows line up).
   return (
-    <div className="cx-panel">
-      <div className="cx-eyebrow">{eyebrow}</div>
-      <div className="cx-kpi-figure">{figure}</div>
-      {sub && <div className="cx-kpi-sub">{sub}</div>}
+    <CxStatTile className="cx-panel" label={eyebrow} value={figure} sub={sub}>
       <div style={{ marginTop: 6 }}>
         <DeltaTag d={d} suffix={suffix} />
       </div>
       <Sparkline values={spark} color={color} style={{ marginTop: 10 }} />
       <Scope scope={scope} through={through} />
-    </div>
+    </CxStatTile>
   )
 }
 
@@ -492,12 +492,12 @@ export default function ExecOverview(props: ExecOverviewProps) {
 
   // ── Four KPI cards ─────────────────────────────────────────────────────
   const kpiBlock = (
-    <div className="cx-grid cx-grid-4">
+    <StatRow look="cx" cols={4} testId="cx-kpi-row">
       <Kpi eyebrow={`Submitted premium · ${tfLabel}`} figure={fmtMoney(submittedCur)} d={deltaOf(submittedCur, submittedPrev)} suffix={vsPrev} spark={cur.map((p) => p.premium)} scope={scope} through={dataThrough} />
       <Kpi eyebrow={`Issued premium · ${tfLabel}`} figure={fmtMoney(issuedCur)} d={deltaOf(issuedCur, issuedPrev)} suffix={vsPrev} spark={cur.map((p) => p.funded)} scope={scope} through={dataThrough} />
       <Kpi eyebrow={`Placement rate · ${tfLabel}`} figure={fmtPct(placementCur)} sub="issued ÷ submitted premium" d={deltaOf(placementCur ?? 0, placementPrev ?? 0)} suffix={vsPrev} spark={cur.map((p) => (p.premium ? p.funded / p.premium : 0))} scope={scope} through={dataThrough} />
       <Kpi eyebrow={`Policies written · ${tfLabel}`} figure={fmtCount(policiesCur)} d={deltaOf(policiesCur, policiesPrev)} suffix={vsPrev} spark={cur.map((p) => p.policies)} scope={scope} through={dataThrough} />
-    </div>
+    </StatRow>
   )
 
   // ── Pace + product mix ─────────────────────────────────────────────────
@@ -653,15 +653,18 @@ export default function ExecOverview(props: ExecOverviewProps) {
           ))}
         </div>
       </div>
-      <div className="cx-grid cx-grid-4" style={{ marginTop: 12 }}>
+      <StatRow look="cx" cols={4} style={{ marginTop: 12 }} testId="cx-persistency-row">
         {persTiles.map((t) => (
-          <div key={t.key}>
-            <div className="cx-eyebrow" style={{ fontSize: 11 }}>{t.label}</div>
-            <div className="cx-kpi-figure">{t.v == null ? '—' : fmtPct(t.v)}</div>
-            <div className="cx-kpi-sub">{t.v == null ? (thirteenFrom && t.key.endsWith('13') ? `starts ${thirteenFrom}, once policies are 13 months old` : 'no policies old enough yet') : 'still paid of paid + lapsed'}</div>
-          </div>
+          <CxStatTile
+            key={t.key}
+            label={<span style={{ fontSize: 11 }}>{t.label}</span>}
+            title={t.label}
+            value={t.v == null ? null : fmtPct(t.v)}
+            empty="Not enough history"
+            sub={t.v == null ? (thirteenFrom && t.key.endsWith('13') ? `starts ${thirteenFrom}, once policies are 13 months old` : 'no policies old enough yet') : 'still paid of paid + lapsed'}
+          />
         ))}
-      </div>
+      </StatRow>
       <div className="cx-grid cx-grid-hero" style={{ marginTop: 16 }}>
         <div>
           <div className="cx-title" style={{ marginBottom: 8 }}>Lapse rate by effective month{line === 'All' ? '' : ` · ${line}`}</div>
@@ -965,12 +968,12 @@ export default function ExecOverview(props: ExecOverviewProps) {
 
   const pinnedKpiBlock =
     customised && prefs!.pinned_kpis.length > 0 ? (
-      <div className="cx-grid cx-grid-4">
+      <StatRow look="cx" cols={Math.min(4, prefs!.pinned_kpis.length)} testId="cx-pinned-kpi-row">
         {prefs!.pinned_kpis.map((k) => {
           const t = kpi(k)
           return t ? <Kpi key={k} eyebrow={t.eyebrow} figure={t.figure} d={t.d} suffix={t.suffix} spark={t.spark} scope={scope} through={dataThrough} /> : null
         })}
-      </div>
+      </StatRow>
     ) : null
 
   const headlineBlock = prefs?.headline_note ? (

@@ -6,6 +6,7 @@ import PageHeader from '@/app/components/PageHeader'
 import { DialogProvider, useDialog } from '@/app/components/cxo/AppDialog'
 import { AttainBar, BonusBar, MiniColumns, PtoBar, QuotaCard, Ring, StatusPill, TimeOffStrip, pctOf, usd } from '@/app/components/cxo/EmployeeVisuals'
 import PeopleHub from '@/app/components/cxo/PeopleHub'
+import { CxStatTile, StatRow } from '@/app/components/cxo/report-kit'
 import type { EmployeesData } from '@/lib/employees/data'
 import type { ReviewItem } from '@/lib/employees/ingestShared'
 import {
@@ -112,30 +113,23 @@ function EmployeesInner({ data, today, comp, canInvite = false, initialTab }: { 
           </section>
         ) : (
           <>
-            <div className="cx-grid cx-grid-4">
-              <section className="cx-panel cxp-kpi cxe-kpiring">
-                <p className="cx-eyebrow">Average to quota</p>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 6 }}>
-                  <Ring value={avgAtt} size={60} stroke={6} />
-                  <div className="cx-kpi-sub" style={{ margin: 0 }}>Across every quota, this period</div>
-                </div>
-              </section>
-              <section className="cx-panel cxp-kpi">
-                <p className="cx-eyebrow">Hit or on pace</p>
-                <div className="cx-kpi-figure">{withQuota.length ? `${good} of ${withQuota.length}` : '—'}</div>
-                {withQuota.length > 0 ? <AttainBar att={good / withQuota.length} /> : <div className="cx-kpi-sub">No quotas set yet</div>}
-              </section>
+            {/* One stat row (Nick 2026-10-21): labels, figures and sub lines level; bars sit under them. */}
+            <StatRow look="cx" cols={4} testId="cxe-kpis">
+              <Kpi label="Average to quota" figure={pctOf(avgAtt)} sub="Across every quota, this period">
+                {avgAtt != null && <AttainBar att={avgAtt} />}
+              </Kpi>
+              <Kpi label="Hit or on pace" figure={withQuota.length ? `${good} of ${withQuota.length}` : null} sub={withQuota.length > 0 ? 'Quotas met or on pace' : 'No quotas set yet'}>
+                {withQuota.length > 0 && <AttainBar att={good / withQuota.length} />}
+              </Kpi>
               {comp ? (
-                <section className="cx-panel cxp-kpi">
-                  <p className="cx-eyebrow">Bonus earned</p>
-                  <div className="cx-kpi-figure">{usd(earned)}</div>
-                  {possible > 0 ? <BonusBar earned={earned} possible={possible} /> : <div className="cx-kpi-sub">No bonus plans set yet</div>}
-                </section>
+                <Kpi label="Bonus earned" figure={usd(earned)} sub={possible > 0 ? undefined : 'No bonus plans set yet'}>
+                  {possible > 0 && <BonusBar earned={earned} possible={possible} />}
+                </Kpi>
               ) : (
                 <Kpi label="Reviews this year" figure={String(data.reviews.filter((r) => r.created_at.startsWith(today.slice(0, 4))).length)} sub="Written so far" />
               )}
               <Kpi label="Employees" figure={String(data.employees.length)} sub={`${departments.length} ${departments.length === 1 ? 'department' : 'departments'}`} />
-            </div>
+            </StatRow>
 
             <div className="cxp-bar">
               <span className="cx-seg" role="tablist" aria-label="View">
@@ -180,13 +174,11 @@ function EmployeesInner({ data, today, comp, canInvite = false, initialTab }: { 
   )
 }
 
-function Kpi({ label, figure, sub }: { label: string; figure: string; sub?: ReactNode }) {
+function Kpi({ label, figure, sub, children }: { label: string; figure: string | null; sub?: ReactNode; children?: ReactNode }) {
   return (
-    <section className="cx-panel cxp-kpi">
-      <p className="cx-eyebrow">{label}</p>
-      <div className="cx-kpi-figure">{figure}</div>
-      {sub && <div className="cx-kpi-sub">{sub}</div>}
-    </section>
+    <CxStatTile className="cx-panel cxp-kpi" label={label} value={figure} sub={sub}>
+      {children && <div style={{ marginTop: 8 }}>{children}</div>}
+    </CxStatTile>
   )
 }
 

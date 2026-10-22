@@ -271,21 +271,31 @@
 .cx-dock:has(> .cx-dock__ans) .cx-dock__bar { margin: 0 12px 12px; box-shadow: none; }
 .cx-dock:has(> .cx-dock__ans) .cx-dock__key { display: none; }
 
-/* Wide screens: a column docked on the right; the panel gives up that width
-   while it is open, so the page stays readable beside it. */
+/* Wide screens: a column docked on the right, beside the white panel and
+   never taller than it (Nick 2026-10-21). Its edges sit on the shell's own
+   padding (globals.css .dash-shell: 20px sides, 20px + --cx-topbar-h on top,
+   28px at the foot, matching .dash-main min-height 100vh - 48px), so its top
+   lines up with the panel's top and its bottom with the panel's foot. The
+   panel gives up the dock's width plus the 20px shell gap (margin, not
+   padding, so the panel itself stops at the dock instead of running under
+   it). Messages scroll inside: the panel clips (overflow: hidden) and the
+   body scrolls (min-height: 0). */
 @media (min-width: 1100px) {
   .cx-dock:has(> .cx-dock__ans) {
-    top: calc(var(--cx-topbar-h, 0px) + 16px);
-    bottom: 16px;
-    right: 16px;
+    top: calc(20px + var(--cx-topbar-h, 0px));
+    bottom: 28px;
+    right: 20px;
     width: 380px;
+    max-height: calc(100vh - 48px - var(--cx-topbar-h, 0px));
+    max-height: calc(100dvh - 48px - var(--cx-topbar-h, 0px));
   }
-  .dash-main:has(> .cx-dock > .cx-dock__ans) { padding-right: 412px; }
+  .dash-main:has(> .cx-dock > .cx-dock__ans) { margin-right: 400px; }
 }
 
 /* Under 1100px there is no room to give up: the panel lies OVER the page
    (no padding on the panel behind it), with a light scrim that closes it on
-   a tap. The × and Escape still close it too. */
+   a tap. The × and Escape still close it too. It keeps the same shell
+   insets, so it still starts and stops where the white panel does. */
 .cx-dock__scrim { display: none; }
 @media (max-width: 1099px) {
   .cx-dock__scrim {
@@ -296,21 +306,28 @@
     background: color-mix(in srgb, var(--cx-ink) 16%, transparent);
   }
   .cx-dock:has(> .cx-dock__ans) {
-    top: calc(var(--cx-topbar-h, 0px) + 12px);
-    bottom: 12px;
-    right: 12px;
+    top: calc(20px + var(--cx-topbar-h, 0px));
+    bottom: 28px;
+    right: 20px;
     left: auto;
-    width: min(400px, calc(100% - 24px));
+    width: min(400px, calc(100% - 40px));
   }
 }
 
-/* Phone: a full-height sheet with the same layout. */
+/* Under 861px the shell padding is 12px all round (globals.css), so the
+   sheet uses the same 12px. Phone width with the phone bar is a full page
+   (phone/cxo-phone.css). */
+@media (max-width: 860px) {
+  .cx-dock:has(> .cx-dock__ans) {
+    top: calc(12px + var(--cx-topbar-h, 0px));
+    bottom: 12px;
+    right: 12px;
+    width: min(400px, calc(100% - 24px));
+  }
+}
 @media (max-width: 820px) {
   .cx-dock:has(> .cx-dock__ans) {
-    top: calc(var(--cx-topbar-h, 0px) + 8px);
-    bottom: 8px;
-    left: 8px;
-    right: 8px;
+    left: 12px;
     width: auto;
   }
 }

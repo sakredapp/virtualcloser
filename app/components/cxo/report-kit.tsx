@@ -11,6 +11,7 @@
  * Sister kit in crmbuilds: client/src/components/report-kit.tsx (same names).
  */
 import type { CSSProperties, ReactNode } from 'react'
+import './stat-tile.css'
 
 export type Verdict = 'good' | 'bad' | 'neutral'
 
@@ -99,44 +100,153 @@ export function Delta({ value, suffix = '%', goodWhen = 'up' }: { value: number 
   )
 }
 
-/** One number tile: label, big value, optional delta and hint. */
-export function StatTile({
-  label, value, delta, goodWhen, hint, verdict, testId,
+export type StatSize = 'sm' | 'md' | 'lg' | 'xl'
+export type StatLook = 'kit' | 'cx'
+
+/** Columns at each panel width: never a 3 + 1 split (crmbuilds statGridCols). */
+export function statRowCols(cols: number): { wide: number; mid: number; narrow: number } {
+  if (cols <= 2) return { wide: cols, mid: cols, narrow: cols }
+  if (cols === 3) return { wide: 3, mid: 3, narrow: 1 }
+  if (cols === 4) return { wide: 4, mid: 2, narrow: 2 }
+  if (cols % 3 === 0) return { wide: cols, mid: 3, narrow: 2 }
+  return { wide: cols, mid: 3, narrow: 2 }
+}
+
+/** A figure counts as empty when there is nothing, or only a dash. */
+export function isEmptyFigure(v: ReactNode): boolean {
+  return v === null || v === undefined || v === false || v === '' || v === '—' || v === '-' || v === '–'
+}
+
+/**
+ * ONE stat row for every KPI strip, stat card and summary row in Suite CXO
+ * (Nick 2026-10-21: "make sure ... are aligned horizontally"). Equal columns;
+ * 4 become 2x2 when the panel is narrow and stack on a phone, measured on the
+ * row's own width (container query), not the viewport, so the CIAO side chat
+ * squeezing the page re-flows it too. CSS: ./stat-tile.css. Server-safe.
+ *
+ * Design refs: Stripe Dashboard metric cards, Mercury account summary, Linear
+ * Insights, Vercel Analytics KPI row (fixed label line, one figure baseline,
+ * one sub line). Sister engine: crmbuilds client/src/components/stat-tile.tsx.
+ */
+export function StatRow({
+  children, cols = 4, mid, narrow, look = 'kit', size, reserveSub, fitChars, gap, noStack, className = '', style, testId,
 }: {
-  label: string
-  value: ReactNode
-  delta?: number | null
-  goodWhen?: 'up' | 'down'
-  hint?: ReactNode
-  verdict?: Verdict
+  children?: ReactNode
+  cols?: number
+  /** Columns under 720px / 440px of row width (defaults from statRowCols). */
+  mid?: number
+  narrow?: number
+  /** 'kit' = the report-kit card; 'cx' = Suite CXO panels (cx-eyebrow / cx-kpi-figure / cx-kpi-sub). */
+  look?: StatLook
+  /** One figure size for the whole row: sm 20, md 24, lg 30, xl 32 (kit 22, cx 30 by default). */
+  size?: StatSize
+  /** Keep the sub line on every tile even when none has one. */
+  reserveSub?: boolean
+  /** Longest figure expected, in characters; a narrower column shrinks it. Default 7. */
+  fitChars?: number
+  gap?: string
+  /** Never fall back to one column (a pair nested inside a wide card). */
+  noStack?: boolean
+  className?: string
+  style?: CSSProperties
   testId?: string
 }) {
+  const d = statRowCols(cols)
+  const vars = {
+    '--cx-stat-cols-wide': d.wide,
+    '--cx-stat-cols-mid': mid ?? d.mid,
+    '--cx-stat-cols-narrow': narrow ?? d.narrow,
+    ...(gap ? { '--cx-stat-gap': gap } : {}),
+    ...(fitChars ? { '--cx-stat-fit-chars': fitChars } : {}),
+  } as CSSProperties
   return (
-    <div
-      data-testid={testId}
-      style={{
-        border: '1px solid var(--border-soft)', borderRadius: 10, padding: '0.6rem 0.7rem',
-        borderTop: verdict && verdict !== 'neutral' ? `3px solid ${VERDICT_COLOR[verdict]}` : undefined,
-        minWidth: 0,
-      }}
-    >
-      <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--muted)' }}>{label}</div>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 4 }}>
-        <span style={{ fontSize: 22, fontWeight: 700, lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>{value}</span>
-        <Delta value={delta} goodWhen={goodWhen} />
+    <div className="cx-stat-wrap">
+      <div
+        className={`cx-stat-row ${className}`.trim()}
+        style={{ ...vars, ...style }}
+        data-look={look}
+        data-size={size}
+        data-cols={cols}
+        data-reserve-sub={reserveSub ? '' : undefined}
+        data-no-stack={noStack ? '' : undefined}
+        data-testid={testId}
+      >
+        {children}
       </div>
-      {hint && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 3 }}>{hint}</div>}
     </div>
   )
 }
 
-/** Grid of StatTiles: 2 across on phones, up to 4 on wider screens. */
-export function StatRow({ children, testId }: { children: ReactNode; testId?: string }) {
+export type StatTileProps = {
+  label: ReactNode
+  /** Beside the label, never cut off (an (i) tip). */
+  labelAside?: ReactNode
+  /** The figure. null / undefined / '' / '—' draws `empty` in its slot. */
+  value?: ReactNode
+  /** Empty state, in the figure's slot. Default "No data yet". */
+  empty?: ReactNode
+  /** One line under the figure. `hint` is the old name. */
+  sub?: ReactNode
+  hint?: ReactNode
+  delta?: number | null
+  goodWhen?: 'up' | 'down'
+  verdict?: Verdict
+  /** 'cx' adds the Suite CXO type classes; match the row's look. */
+  look?: StatLook
+  /** Span two columns (a paired card). */
+  span?: 2
+  /** Tooltip for the label when it is not a plain string. */
+  title?: string
+  className?: string
+  style?: CSSProperties
+  testId?: string
+  /** Under the aligned block (a bar, a spark, a scope line). */
+  children?: ReactNode
+}
+
+/** One tile: a fixed label line, the figure, a one-line sub, then anything else. Use inside StatRow. */
+export function StatTile({
+  label, labelAside, value, empty = 'No data yet', sub, hint, delta, goodWhen, verdict, look = 'kit', span, title, className = '', style, testId, children,
+}: StatTileProps) {
+  const cx = look === 'cx'
+  const s = sub ?? hint
+  const hasSub = !isEmptyFigure(s) || s === '—'
+  const isEmpty = isEmptyFigure(value)
+  const tip = title ?? (typeof label === 'string' ? label : undefined)
+  const subTip = typeof s === 'string' ? s : undefined
   return (
-    <div data-testid={testId} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.5rem' }}>
+    <div
+      className={`cx-stat-tile ${className}`.trim()}
+      style={style}
+      data-span={span}
+      data-verdict={verdict && verdict !== 'neutral' ? verdict : undefined}
+      data-empty={isEmpty ? '' : undefined}
+      data-testid={testId}
+    >
+      <div className={`cx-stat-label${cx ? ' cx-eyebrow' : ''}`} title={tip} data-testid={testId ? `${testId}-label` : undefined}>
+        <span className="cx-stat-label-text">{label}</span>
+        {labelAside}
+      </div>
+      <div className={`cx-stat-value${cx ? ' cx-kpi-figure' : ''}`} data-testid={testId ? `${testId}-value` : undefined}>
+        {isEmpty ? <span className="cx-stat-empty">{empty}</span> : <span className="cx-stat-value-text">{value}</span>}
+        <Delta value={delta} goodWhen={goodWhen} />
+      </div>
+      <div
+        className={`cx-stat-sub${cx ? ' cx-kpi-sub' : ''}`}
+        data-empty={hasSub ? undefined : ''}
+        title={subTip}
+        data-testid={testId ? `${testId}-sub` : undefined}
+      >
+        {hasSub ? s : '\u00a0'}
+      </div>
       {children}
     </div>
   )
+}
+
+/** A Suite CXO tile (cx-eyebrow label, cx-kpi-figure figure, cx-kpi-sub line). */
+export function CxStatTile(props: Omit<StatTileProps, 'look'>) {
+  return <StatTile {...props} look="cx" />
 }
 
 /** Horizontal progress bar with "x of y · z%". */

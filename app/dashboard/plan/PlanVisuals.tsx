@@ -9,6 +9,7 @@
 import Link from 'next/link'
 import type { ReactNode } from 'react'
 import { Columns, PaceMeter, WaveChart, INK, SILVER, REF } from '@/app/components/cxo/charts'
+import { CxStatTile, StatRow } from '@/app/components/cxo/report-kit'
 import { fmtMoney, fmtCount } from '@/lib/pinnacle/kpis'
 import { MONTHS, planByMonth, sum, type PlanTarget } from '@/lib/plan/shared'
 import { PACE_WORDS, barWidth, pctLabel, type MonthCell, type PaceStatus, type PlanVisuals, type TierRail } from '@/lib/plan/visuals'
@@ -50,14 +51,9 @@ export function ProgressRow({ label, value, figure, sub, marker, markerLabel, to
   )
 }
 
+/** A plan tile on the shared stat row: the children are its one sub line (text, a mini bar, a pace dot). */
 function Tile({ label, figure, children }: { label: string; figure: string; children?: ReactNode }) {
-  return (
-    <section className="cx-panel cxp-kpi">
-      <p className="cx-eyebrow">{label}</p>
-      <div className="cx-kpi-figure">{figure}</div>
-      {children && <div className="cx-kpi-sub">{children}</div>}
-    </section>
-  )
+  return <CxStatTile className="cx-panel cxp-kpi" label={label} value={figure} sub={children || undefined} />
 }
 
 function MiniBar({ value }: { value: number | null }) {
@@ -155,12 +151,12 @@ export function PlanOverview({ v, targets, through, years, thisYear, onUpload }:
     const carriers = new Set(targets.map((t) => t.carrier.trim().toLowerCase()).filter(Boolean)).size
     return (
       <>
-        <div className="cx-grid cx-grid-4">
+        <StatRow look="cx" cols={4} testId="cxp-future-kpis">
           <Tile label={`${year} plan`} figure={fmtMoney(v.planTotal)}>{policies > 0 ? `${fmtCount(policies)} policies planned` : 'Premium target for the year'}</Tile>
           <Tile label="Biggest month" figure={peak.plan > 0 ? peak.label : '—'}>{peak.plan > 0 ? `${fmtMoney(peak.plan)} planned` : ''}</Tile>
           <Tile label="Carriers in the plan" figure={carriers ? String(carriers) : '—'}>{carriers ? 'Each one tracked below' : 'Plan has no carrier split'}</Tile>
           <Tile label="Tracking starts" figure={`Jan 1`}>{`Actuals and pace from ${year}`}</Tile>
-        </div>
+        </StatRow>
         {years.includes(thisYear) && (
           <EmptyCard
             title={`${year} has not started`}
@@ -214,7 +210,7 @@ export function PlanOverview({ v, targets, through, years, thisYear, onUpload }:
         </p>
       )}
 
-      <div className="cx-grid cx-grid-4">
+      <StatRow look="cx" cols={4} testId="cxp-kpis">
         <Tile label={`${year} plan`} figure={fmtMoney(v.planTotal)}>{policies > 0 ? `${fmtCount(policies)} policies planned` : 'Premium target for the year'}</Tile>
         <Tile label={closed ? 'Written in the year' : 'Written so far'} figure={notConnected ? '—' : fmtMoney(v.actualYtd)}>
           {!notConnected && (
@@ -243,7 +239,7 @@ export function PlanOverview({ v, targets, through, years, thisYear, onUpload }:
         ) : (
           <Tile label="Year result" figure={notConnected ? '—' : pctLabel(v.pctOfYearPlan)}>{notConnected ? 'Needs the book' : 'Of the plan, final'}</Tile>
         )}
-      </div>
+      </StatRow>
 
       <section className="cx-panel">
         <div className="cxp-head">
