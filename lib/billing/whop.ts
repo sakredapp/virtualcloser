@@ -6,9 +6,10 @@
  * (api/_lib/whop.ts there): a handful of endpoints and one signature check do
  * not justify the SDK.
  *
- * What lives on Whop (the Virtual Closer business, biz_wFhgXh7j1hS0BI):
- *   product "Suite CXO"          prod_3VrVQnPFhmgHT, hidden
- *   plan    "Suite CXO seat"     CXO_WHOP_PLAN_ID (plan_joiPWFNiBNGDd), hidden,
+ * What lives on Whop (Suite CXO's own business, biz_SPZ04AFkJaua4I, store
+ * whop.com/suitecxo; moved off the Virtual Closer business 2026-10-21):
+ *   product "Suite CXO"          prod_JNLkFX2e0WBfp
+ *   plan    "Suite CXO seat"     CXO_WHOP_PLAN_ID (plan_KEayyFwJhavJH),
  *                                $60 every 30 days, no setup charge
  *
  * Every checkout we make carries metadata `{ kind, rep_id }`. Whop copies it
@@ -18,7 +19,8 @@
  *
  * Env (server only):
  *   WHOP_API_KEY         a company API key of that business (Whop dashboard,
- *                        Developer > API keys). Sensitive.
+ *                        Developer > API keys). Sensitive. Also sends the
+ *                        complete_registration event (needs event:create).
  *   WHOP_WEBHOOK_SECRET  the secret of the webhook pointed at
  *                        https://www.suitecxo.com/api/webhooks/whop. Sensitive.
  *   CXO_WHOP_PLAN_ID     the $60 seat plan. Not a secret.
@@ -34,8 +36,8 @@ const WHOP_API = 'https://api.whop.com/api/v1'
 /** Pinned so a Whop-side default change cannot reshape the payloads we read. */
 export const WHOP_API_VERSION_DATE = '2026-09-11'
 
-const DEFAULT_WHOP_ACCOUNT_ID = 'biz_wFhgXh7j1hS0BI'
-const DEFAULT_CXO_WHOP_PRODUCT_ID = 'prod_3VrVQnPFhmgHT'
+const DEFAULT_WHOP_ACCOUNT_ID = 'biz_SPZ04AFkJaua4I'
+const DEFAULT_CXO_WHOP_PRODUCT_ID = 'prod_JNLkFX2e0WBfp'
 
 /** The metadata `kind` values our checkouts carry. */
 export const CXO_WHOP_KINDS = {

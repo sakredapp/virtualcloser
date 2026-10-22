@@ -6,6 +6,8 @@ import { supabase } from '@/lib/supabase'
 import { enforceRateLimit } from '@/lib/rateLimit'
 import CxAuthCard from '@/app/components/cxo/CxAuthCard'
 import { cxoPageMeta } from '@/lib/seo'
+import { safeProspectId } from '@/lib/whopPixel'
+import { LeadSent, RememberLeadContact } from './LeadPixel'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,7 +31,7 @@ const INTERESTS = [
  * Lives under /cxo so it is public on every CXO host, including a tenant's
  * own login host (where /demo is the Virtual Closer demo).
  */
-export default async function CxoRequestAccessPage({ searchParams }: { searchParams?: Promise<{ sent?: string; error?: string; interest?: string }> }) {
+export default async function CxoRequestAccessPage({ searchParams }: { searchParams?: Promise<{ sent?: string; error?: string; interest?: string; lead?: string }> }) {
   const params = (await searchParams) ?? {}
 
   async function requestAccess(fd: FormData) {
@@ -49,7 +51,7 @@ export default async function CxoRequestAccessPage({ searchParams }: { searchPar
     const ip = (h.get('x-forwarded-for') ?? '').split(',')[0].trim() || 'unknown'
     const rl = await enforceRateLimit(`cxo_request_access:${ip}`, 5, 3600)
     if (!rl.allowed) redirect('/cxo/request-access?error=busy')
-    const { error } = await supabase.from('prospects').insert({
+    const { data: saved, error } = await supabase.from('prospects').insert({
       source: 'cxo_request_access',
       name,
       email,
@@ -58,17 +60,21 @@ export default async function CxoRequestAccessPage({ searchParams }: { searchPar
       notes: [interest ? `Interest: ${interest}` : '', role ? `Role: ${role}` : '', notes].filter(Boolean).join('\n') || null,
       status: 'new',
       payload: { via: 'cxo_login', role: role || null, interest, host: h.get('host') ?? null },
-    })
+    }).select('id').maybeSingle()
     if (error) {
       console.error('[cxo request-access] save failed', error.message)
       redirect('/cxo/request-access?error=save')
     }
-    redirect('/cxo/request-access?sent=1')
+    // The prospect id is the Whop Pixel lead's event_id (LeadPixel.tsx). No name or email in the URL.
+    const leadId = safeProspectId((saved as { id?: unknown } | null)?.id)
+    redirect(leadId ? `/cxo/request-access?sent=1&lead=${leadId}` : '/cxo/request-access?sent=1')
   }
 
   if (params.sent === '1') {
+    const leadId = safeProspectId(params.lead)
     return (
       <CxAuthCard title="Request received" sub="Thank you. Our team will reach out to book your call.">
+        {leadId && <LeadSent prospectId={leadId} />}
         <Link href="/login" className="cx-login-submit">
           Back to sign in
         </Link>
@@ -94,7 +100,8 @@ export default async function CxoRequestAccessPage({ searchParams }: { searchPar
           {err}
         </p>
       )}
-      <form action={requestAccess} className="cx-login-form">
+      <RememberLeadContact formId="cxo-request-access-form" />
+      <form id="cxo-request-access-form" action={requestAccess} className="cx-login-form">
         <label className="cx-login-field">
           <span>Name</span>
           <input name="name" required autoFocus autoComplete="name" className="cx-login-input" />

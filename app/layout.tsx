@@ -9,6 +9,8 @@ import PublicActionsMenu from './components/PublicActionsMenu'
 import { THEME_SCRIPT } from './components/cxo/themeScript'
 import { brandFromHost, getBrand, isAnyGatewayHost, type BrandConfig } from '@/lib/brand'
 import { CXO_SITE_DESCRIPTION, CXO_SITE_NAME, CXO_SITE_ORIGIN } from '@/lib/seo'
+import { cxoPixelHostAllowed } from '@/lib/whopPixel'
+import WhopPixel from './components/cxo/WhopPixel'
 
 // Resolve the brand for the chrome. Prefer the authenticated tenant's stored
 // brand so a CXO tenant always renders CXO chrome — even when its portal is
@@ -135,6 +137,12 @@ export default async function RootLayout({
     )
   }
 
+  // Whop Pixel: the public www.suitecxo.com site in a browser only. Never a
+  // company's own host (pinnacle.suitecxo.com) and never the store app. The
+  // component itself limits it to the public selling pages (lib/whopPixel.ts).
+  const h = await headers()
+  const pixel = brand.key === 'cxo' && cxoPixelHostAllowed(h.get('x-tenant-host') ?? h.get('host'), h.get('user-agent'))
+
   return (
     // data-theme is set before first paint by THEME_SCRIPT (light by default),
     // so the attribute differs from the server render on purpose.
@@ -144,6 +152,7 @@ export default async function RootLayout({
       </head>
       <body>
         <div className="cxo-shell">{children}</div>
+        {pixel && <WhopPixel />}
       </body>
     </html>
   )

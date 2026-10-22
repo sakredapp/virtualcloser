@@ -5,9 +5,9 @@
  * alike; each person adds questions to ONE shared company pool; extra
  * questions bill per 100; exec assistants are free. No setup fees listed.
  *
- * Checkout: payments run on Whop. There is no Suite CXO Whop plan yet, so
- * the buy button reads ONE value, CXO_WHOP_PLAN_ID. Until it is set the
- * site shows "Book a call" (the existing request form) instead.
+ * Checkout: payments run on Suite CXO's own Whop business. The buy button
+ * reads ONE value, CXO_WHOP_PLAN_ID (live: plan_KEayyFwJhavJH). Without it
+ * the site shows "Book a call" (the existing request form) instead.
  */
 
 export const CXO_PRICE_PER_PERSON = 60
