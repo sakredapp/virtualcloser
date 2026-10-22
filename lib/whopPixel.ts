@@ -60,7 +60,8 @@ export function cxoPixelHostAllowed(host: string | null | undefined, userAgent: 
 
 /**
  * The snippet from docs.whop.com/developer/ads/pixel, verbatim, scoped to the
- * Suite CXO business. One line is added after the loader: `whop.c` is the
+ * Suite CXO business, wrapped in one guard (cxoPixelGuardJs: no GPC, no app or
+ * company-host referrer). One line is added after the loader: `whop.c` is the
  * pixel's own start-up options (read by t.whop.tw/s.js when it boots; every
  * feature is on unless set to false):
  *   - autoPage:false: it does not track route changes by itself. We fire `page`
@@ -73,10 +74,32 @@ export function cxoPixelHostAllowed(host: string | null | undefined, userAgent: 
  * Same settings as crmbuilds shared/whop-pixel.ts (Virtual Closer, Run My Ads).
  */
 export function cxoWhopPixelSnippet(accountId: string = CXO_WHOP_PIXEL_ACCOUNT_ID): string {
-  return `!function(w,d,s,u,n,a,b){if(w[n])return;a=w[n]={q:[],t:+new Date,s:[],o:u,track:function(){a.q.push([+new Date].concat([].slice.call(arguments)))},setScope:function(){a.s=[].slice.call(arguments).filter(function(x){return typeof x==="string"});a.q.push([+new Date,"setScope"].concat(a.s))},scope:function(){var c=[].slice.call(arguments);return{track:function(){a.q.push([+new Date].concat([].slice.call(arguments)).concat([{__scope:c}]))}}}};b=d.createElement(s);b.async=1;b.src=u+"/s.js";d.getElementsByTagName(s)[0].parentNode.insertBefore(b,d.getElementsByTagName(s)[0])}(window,document,"script","${WHOP_PIXEL_ORIGIN}","whop");
+  return `if(${cxoPixelGuardJs()}){
+!function(w,d,s,u,n,a,b){if(w[n])return;a=w[n]={q:[],t:+new Date,s:[],o:u,track:function(){a.q.push([+new Date].concat([].slice.call(arguments)))},setScope:function(){a.s=[].slice.call(arguments).filter(function(x){return typeof x==="string"});a.q.push([+new Date,"setScope"].concat(a.s))},scope:function(){var c=[].slice.call(arguments);return{track:function(){a.q.push([+new Date].concat([].slice.call(arguments)).concat([{__scope:c}]))}}}};b=d.createElement(s);b.async=1;b.src=u+"/s.js";d.getElementsByTagName(s)[0].parentNode.insertBefore(b,d.getElementsByTagName(s)[0])}(window,document,"script","${WHOP_PIXEL_ORIGIN}","whop");
 whop.c=Object.assign({},whop.c,{autoPage:false,forms:false,urlIdentity:false});
 whop.setScope("${accountId}");
-whop.track("page");`
+whop.track("page");
+}`
+}
+
+/**
+ * The guard the snippet runs first, in the browser (an expression, true = load).
+ * s.js sends document.referrer with every event and the site sets no
+ * Referrer-Policy, so a full load of /login from inside the app (a sign-out
+ * reload, an idle timeout, a new tab) would hand Whop an app URL. The referrer
+ * never changes for a document, so checking it once covers every later event.
+ * Off when:
+ *   - the browser sends Global Privacy Control (same as Virtual Closer / Run My Ads);
+ *   - the referrer is on a company host (pinnacle.suitecxo.com and the rest);
+ *   - the referrer is www.suitecxo.com / suitecxo.com on a path that is not a
+ *     selling page (the app, /onboard/<token>, /reset-password ...);
+ *   - the referrer cannot be read.
+ * Outside referrers (Google, an ad) are fine. Compliance review 2026-10-22 (VC lane).
+ */
+function cxoPixelGuardJs(): string {
+  const exact = JSON.stringify(PIXEL_PATHS_EXACT)
+  const prefixes = JSON.stringify(PIXEL_PATH_PREFIXES)
+  return `function(w,d){try{if(w.navigator&&w.navigator.globalPrivacyControl===true)return false;var r=d.referrer||"";if(!r)return true;var u=new URL(r),h=u.hostname.toLowerCase().replace(/\\.$/,"");if(h!=="suitecxo.com"&&!/\\.suitecxo\\.com$/.test(h))return true;if(h!=="suitecxo.com"&&h!=="www.suitecxo.com")return false;var p=u.pathname.replace(/\\/{2,}/g,"/").toLowerCase();if(p.length>1&&p.slice(-1)==="/")p=p.slice(0,-1);var e=${exact},x=${prefixes};if(e.indexOf(p)>=0)return true;for(var i=0;i<x.length;i++)if(p===x[i]||p.indexOf(x[i]+"/")===0)return true;return false}catch(err){return false}}(window,document)`
 }
 
 /** The `lead` event for one saved "Book a call" request. event_id is the prospect row's id. */

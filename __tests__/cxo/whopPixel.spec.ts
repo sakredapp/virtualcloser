@@ -49,7 +49,8 @@ describe('Whop Pixel: the snippet', () => {
     expect(CXO_WHOP_PIXEL_ACCOUNT_ID).toBe('biz_SPZ04AFkJaua4I')
     expect(s).toContain('(window,document,"script","https://t.whop.tw","whop");')
     expect(s).toContain('whop.setScope("biz_SPZ04AFkJaua4I");')
-    expect(s.trim().endsWith('whop.track("page");')).toBe(true)
+    expect(s.trim().endsWith('whop.track("page");\n}')).toBe(true)
+    expect(s.startsWith('if(function(w,d){')).toBe(true)
     // Its own route tracking, form reading and URL reading are off; WhopPixel.tsx fires page on allowed paths only.
     expect(s).toContain('whop.c=Object.assign({},whop.c,{autoPage:false,forms:false,urlIdentity:false});')
   })
@@ -65,6 +66,37 @@ describe('Whop Pixel: the snippet', () => {
     expect(layout).toMatch(/cxoPixelHostAllowed\(/)
     expect(layout).toMatch(/\{pixel && <WhopPixel snippet=\{cxoWhopPixelSnippet\(\)\} \/>\}/)
     expect(read('app/components/cxo/WhopPixel.tsx')).toMatch(/strategy="afterInteractive"/)
+  })
+})
+
+describe('Whop Pixel: referrer and GPC guard (runs the real snippet)', () => {
+  // s.js sends document.referrer with every event and the site sets no
+  // Referrer-Policy: a full load of /login from inside the app would hand Whop an app URL.
+  function run(referrer: string, gpc?: boolean) {
+    const inserted: unknown[] = []
+    const script = { parentNode: { insertBefore: (el: unknown) => inserted.push(el) } }
+    const document = { referrer, createElement: () => ({}), getElementsByTagName: () => [script] }
+    const window: Record<string, unknown> = { navigator: gpc === undefined ? {} : { globalPrivacyControl: gpc } }
+    new Function('window', 'document', 'navigator', `with (window) { ${cxoWhopPixelSnippet()} }`)(window, document, window.navigator)
+    return { loaded: inserted.length === 1 && !!window.whop, whop: window.whop as { q: unknown[][] } | undefined }
+  }
+
+  it('loads for outside and selling-page referrers', () => {
+    for (const r of ['', 'https://www.google.com/search?q=ai', 'https://www.suitecxo.com/', 'https://www.suitecxo.com/cxo/demo', 'https://suitecxo.com/pricing']) {
+      const out = run(r)
+      expect(out.loaded, r).toBe(true)
+      expect(out.whop!.q.map((x) => x[1])).toEqual(['setScope', 'page'])
+    }
+  })
+
+  it('stays off when the referrer is an app or company page of ours, or unreadable', () => {
+    for (const r of ['https://www.suitecxo.com/dashboard/ciao?thread=abc', 'https://www.suitecxo.com/admin', 'https://www.suitecxo.com/onboard/tok_secret', 'https://pinnacle.suitecxo.com/dashboard', 'https://pinnacle.suitecxo.com/', 'not a url'])
+      expect(run(r).loaded, r).toBe(false)
+  })
+
+  it('stays off when the browser sends Global Privacy Control', () => {
+    expect(run('', true).loaded).toBe(false)
+    expect(run('', false).loaded).toBe(true)
   })
 })
 
