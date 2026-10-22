@@ -12,6 +12,7 @@ import { useState } from 'react'
 import type { PeopleStats, Retention } from '@/lib/pinnacle/people'
 import { delta, deltaWords, fmtCount, fmtPct } from '@/lib/pinnacle/kpis'
 import { Columns, INK, POINT, REF, SILVER, WaveChart } from './charts'
+import { CxStatTile, StatRow } from './report-kit'
 import { useAssistantName } from '@/app/components/AssistantNameProvider'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -106,29 +107,22 @@ export default function TeamRetention({ data }: { data: PeopleStats }) {
           <h2 className="cx-section-title">Retention &amp; turnover</h2>
           <Info text={STILL_WRITING_COPY} />
         </div>
-        <div className="cx-retention-figs">
+        <StatRow look="cx" cols={6} mid={3} narrow={2} fitChars={5} gap="16px 24px" style={{ marginTop: 14 }} testId="cx-retention-row">
           {marks.map((m) => (
-            <div key={m.k}>
-              <div className="cx-kpi-figure">{fmtPct(m.v)}</div>
-              <div className="cx-kpi-sub">still writing at {m.label} · {fmtCount(m.n)} agents</div>
-            </div>
+            <CxStatTile key={m.k} label={`Still writing at ${m.label}`} value={m.v == null ? null : fmtPct(m.v)} sub={`${fmtCount(m.n)} agents`} />
           ))}
-          <div>
-            <div className="cx-kpi-figure">{fmtPct(m10)}</div>
-            <div className="cx-kpi-sub">
-              make it past month 10 <Info text={TEN_MONTH_COPY} />
-            </div>
-          </div>
-          <div>
-            <div className="cx-kpi-figure">{fmtPct(turnover)}</div>
-            <div className="cx-kpi-sub">
-              turnover, annualised{' '}
+          <CxStatTile label="Past month 10" labelAside={<Info text={TEN_MONTH_COPY} />} value={m10 == null ? null : fmtPct(m10)} sub="make it past month 10" />
+          <CxStatTile
+            label="Turnover, annualised"
+            labelAside={
               <Info
                 text={`Agents who left ÷ average writing headcount, scaled to 12 months. Left = 90 days with no policy after their last one, or moved to inactive, terminated or released while still writing. Counted ${mLong(r.turnover.from.slice(0, 7))} to today (${r.turnover.months.toFixed(1)} months), the stretch the book can see: ${fmtCount(r.turnover.left)} left, average ${fmtCount(Math.round(r.turnover.avg_headcount ?? 0))} writing agents.`}
               />
-            </div>
-          </div>
-        </div>
+            }
+            value={turnover == null ? null : fmtPct(turnover)}
+            sub="left, over a year"
+          />
+        </StatRow>
       </section>
 
       <div className="cx-grid cx-grid-hero" style={{ alignItems: 'start' }}>
@@ -203,20 +197,11 @@ export default function TeamRetention({ data }: { data: PeopleStats }) {
           blank gap under Early washout and squeezed its own Agent column. */}
       <section className="cx-panel">
         <div className="cx-eyebrow">Early washout</div>
-        <div className="cx-retention-figs" style={{ marginTop: 8 }}>
-          <div>
-            <div className="cx-kpi-figure">{fmtPct(early)}</div>
-            <div className="cx-kpi-sub">washed out early</div>
-          </div>
-          <div>
-            <div className="cx-kpi-figure">{fmtPct(never)}</div>
-            <div className="cx-kpi-sub">never wrote a policy · {fmtCount(w.never)} agents</div>
-          </div>
-          <div>
-            <div className="cx-kpi-figure">{fmtPct(stopped)}</div>
-            <div className="cx-kpi-sub">wrote, then stopped within 90 days · {fmtCount(w.stopped90)} agents</div>
-          </div>
-        </div>
+        <StatRow look="cx" cols={3} narrow={1} fitChars={5} gap="16px 24px" style={{ marginTop: 8 }} testId="cx-washout-row">
+          <CxStatTile label="Washed out early" value={early == null ? null : fmtPct(early)} sub="never wrote, or stopped in 90 days" />
+          <CxStatTile label="Never wrote a policy" value={never == null ? null : fmtPct(never)} sub={`${fmtCount(w.never)} agents`} />
+          <CxStatTile label="Wrote, then stopped" title="Wrote, then stopped within 90 days" value={stopped == null ? null : fmtPct(stopped)} sub={`within 90 days · ${fmtCount(w.stopped90)} agents`} />
+        </StatRow>
         <p className="cx-takeaway">
           Of <strong>{fmtCount(w.eligible)}</strong> agents who joined since {bookFrom} and have been here at least 6 months.
         </p>

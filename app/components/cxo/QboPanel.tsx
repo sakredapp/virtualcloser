@@ -16,6 +16,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { BarList, Columns, INK, SILVER } from '@/app/components/cxo/charts'
 import { fmtMoney } from '@/lib/pinnacle/kpis'
+import { CxStatTile, StatRow } from '@/app/components/cxo/report-kit'
 import { QBO_NOT_SET_UP, marginPct, monthLabel, lastQuarter, totalCost, type QboPanelData } from '@/lib/qbo/display'
 
 export type { QboPanelData }
@@ -123,28 +124,12 @@ export default function QboPanel({ data, returnPath, variant = 'revenue', todayI
     return (
       <section className="cx-panel cx-qbo" aria-label="From QuickBooks">
         {head}
-        <div className="cx-grid cx-grid-4 cx-qbo-kpis">
-          <div>
-            <p className="cx-eyebrow">Net margin, 12 months</p>
-            <div className="cx-kpi-figure">{pctText(marginPct(net12, rev12))}</div>
-            <p className="cx-kpi-sub">{fmtMoney(net12)} on {fmtMoney(rev12)}</p>
-          </div>
-          <div>
-            <p className="cx-eyebrow">Gross margin, 12 months</p>
-            <div className="cx-kpi-figure">{pctText(marginPct(gp12, rev12))}</div>
-            <p className="cx-kpi-sub">After cost of sales</p>
-          </div>
-          <div>
-            <p className="cx-eyebrow">Net margin, {lq.label}</p>
-            <div className="cx-kpi-figure">{pctText(lqMargin)}</div>
-            <p className="cx-kpi-sub">Last full quarter</p>
-          </div>
-          <div>
-            <p className="cx-eyebrow">Costs, 12 months</p>
-            <div className="cx-kpi-figure">{fmtMoney(cost12)}</div>
-            <p className="cx-kpi-sub">{rev12 > 0 ? `${((cost12 / rev12) * 100).toFixed(1)}% of revenue` : '—'}</p>
-          </div>
-        </div>
+        <StatRow look="cx" cols={4} size="md" className="cx-qbo-kpis" testId="cx-qbo-margins">
+          <CxStatTile label="Net margin, 12 months" value={pctText(marginPct(net12, rev12))} sub={`${fmtMoney(net12)} on ${fmtMoney(rev12)}`} />
+          <CxStatTile label="Gross margin, 12 months" value={pctText(marginPct(gp12, rev12))} sub="After cost of sales" />
+          <CxStatTile label={`Net margin, ${lq.label}`} value={pctText(lqMargin)} sub="Last full quarter" />
+          <CxStatTile label="Costs, 12 months" value={fmtMoney(cost12)} sub={rev12 > 0 ? `${((cost12 / rev12) * 100).toFixed(1)}% of revenue` : undefined} />
+        </StatRow>
         <p className="cx-scope">{span}. What the books actually kept, to set against the projected margin in Unit economics.</p>
         {note && <p className="cx-scope" role="status">{note}</p>}
       </section>
@@ -154,25 +139,13 @@ export default function QboPanel({ data, returnPath, variant = 'revenue', todayI
   return (
     <section className="cx-panel cx-qbo" aria-label="From QuickBooks">
       {head}
-      <div className="cx-grid cx-grid-4 cx-qbo-kpis">
-        <div>
-          <p className="cx-eyebrow">Revenue, 12 months</p>
-          <div className="cx-kpi-figure">{fmtMoney(rev12)}</div>
-        </div>
-        <div>
-          <p className="cx-eyebrow">Expenses, 12 months</p>
-          <div className="cx-kpi-figure">{fmtMoney(cost12)}</div>
-        </div>
-        <div>
-          <p className="cx-eyebrow">Net income, 12 months</p>
-          <div className="cx-kpi-figure">{fmtMoney(net12)}</div>
-        </div>
-        <div>
-          <p className="cx-eyebrow">Net margin</p>
-          <div className="cx-kpi-figure">{pctText(marginPct(net12, rev12))}</div>
-          <p className="cx-kpi-sub">{lq.label}: {pctText(lqMargin)}</p>
-        </div>
-      </div>
+      {/* Only the margin tile has a sub; the row keeps the line on all four. */}
+      <StatRow look="cx" cols={4} size="md" className="cx-qbo-kpis" testId="cx-qbo-kpis">
+        <CxStatTile label="Revenue, 12 months" value={fmtMoney(rev12)} />
+        <CxStatTile label="Expenses, 12 months" value={fmtMoney(cost12)} />
+        <CxStatTile label="Net income, 12 months" value={fmtMoney(net12)} />
+        <CxStatTile label="Net margin" value={pctText(marginPct(net12, rev12))} sub={`${lq.label}: ${pctText(lqMargin)}`} />
+      </StatRow>
 
       <div style={{ marginTop: 18 }}>
         <Columns

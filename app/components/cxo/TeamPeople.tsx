@@ -10,6 +10,7 @@ import { useState } from 'react'
 import type { PeopleStats } from '@/lib/pinnacle/people'
 import { fmtCount, fmtPct } from '@/lib/pinnacle/kpis'
 import { Columns, INK, SILVER } from './charts'
+import { CxStatTile, StatRow } from './report-kit'
 import TeamRetention, { Info, TEN_MONTH_COPY, milestonePct } from './TeamRetention'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -18,14 +19,8 @@ const mLong = (k: string) => `${mLabel(k)} ${k.slice(0, 4)}`
 const ratio = (a: number, b: number) => (b > 0 ? a / b : null)
 const days = (n: number | null | undefined) => (n == null ? '—' : `${Math.round(n)} days`)
 
-function Stat({ label, figure, sub, hot }: { label: string; figure: string; sub?: string; hot?: boolean }) {
-  return (
-    <div className="cx-panel cx-stat">
-      <div className="cx-eyebrow">{label}</div>
-      <div className="cx-kpi-figure" style={hot ? { color: INK } : undefined}>{figure}</div>
-      {sub && <div className="cx-kpi-sub">{sub}</div>}
-    </div>
-  )
+function Stat({ label, figure, sub }: { label: string; figure: string | null; sub?: string }) {
+  return <CxStatTile className="cx-panel cx-stat" label={label} value={figure} sub={sub} />
 }
 
 type Span = '30' | '90' | '365'
@@ -38,24 +33,24 @@ function WritingCard({ data }: { data: PeopleStats }) {
   const joined = span === '30' ? data.new30 : span === '90' ? data.new90 ?? null : data.new365 ?? null
   const bookShort = span === '365' && data.book_start > new Date(Date.parse(data.today + 'T12:00:00Z') - 365 * 86_400_000).toISOString().slice(0, 10)
   return (
-    <div className="cx-panel cx-stat cx-stat-wide">
-      <div className="cx-eyebrow">Writing and new agents</div>
-      <div className="cx-seg" role="group" aria-label="Window">
+    <div className="cx-panel cx-stat cx-stat-wide cx-stat-tile" data-span="2">
+      {/* Two tiles in the same row engine, so their labels and figures sit on
+          the neighbours' lines; the window control goes under them. */}
+      <StatRow look="cx" cols={2} size="xl" fitChars={5} noStack gap="22px" testId="cx-writing-pair">
+        <CxStatTile
+          label="Wrote a policy"
+          title="Writing and new agents · wrote a policy"
+          value={writing == null ? null : fmtCount(writing)}
+          sub={bookShort ? `book starts ${MONTHS[Number(data.book_start.slice(5, 7)) - 1]} ${data.book_start.slice(0, 4)}` : undefined}
+        />
+        <CxStatTile label="New agents joined" value={joined == null ? null : fmtCount(joined)} />
+      </StatRow>
+      <div className="cx-seg" role="group" aria-label="Writing and new agents · window">
         {SPANS.map(([k, label]) => (
           <button key={k} type="button" aria-pressed={span === k} onClick={() => setSpan(k)}>
             {label}
           </button>
         ))}
-      </div>
-      <div className="cx-stat-pair">
-        <div>
-          <div className="cx-kpi-figure">{writing == null ? '—' : fmtCount(writing)}</div>
-          <div className="cx-kpi-sub">wrote a policy{bookShort ? ` · book starts ${MONTHS[Number(data.book_start.slice(5, 7)) - 1]} ${data.book_start.slice(0, 4)}` : ''}</div>
-        </div>
-        <div>
-          <div className="cx-kpi-figure">{joined == null ? '—' : fmtCount(joined)}</div>
-          <div className="cx-kpi-sub">new agents joined</div>
-        </div>
       </div>
     </div>
   )
@@ -82,37 +77,31 @@ export default function TeamPeople({ data, computedAt, orgName }: { data: People
 
   return (
     <>
-      <div className="cx-grid cx-grid-6">
+      <StatRow look="cx" cols={6} mid={3} narrow={2} size="xl" fitChars={5} style={{ gridAutoFlow: 'row dense' }} testId="cx-team-stats">
         <Stat label="Agencies" figure={fmtCount(data.agencies)} sub="with active agents" />
         <Stat label="Agents" figure={fmtCount(data.roster)} sub={`${fmtCount(data.active)} active`} />
         <WritingCard data={data} />
-        <Stat label="Active and writing" figure={fmtPct(activeShare)} sub="of active agents wrote in 30 days" hot />
-        <div className="cx-panel cx-stat">
-          <div className="cx-eyebrow" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            Past month 10 <Info text={TEN_MONTH_COPY} />
-          </div>
-          <div className="cx-kpi-figure">{fmtPct(milestonePct(data.retention, 'm10'))}</div>
-          <div className="cx-kpi-sub">of new agents still writing at month 10</div>
-        </div>
-      </div>
+        <Stat label="Active and writing" figure={activeShare == null ? null : fmtPct(activeShare)} sub="of active agents wrote in 30 days" />
+        <CxStatTile
+          className="cx-panel cx-stat"
+          label="Past month 10"
+          labelAside={<Info text={TEN_MONTH_COPY} />}
+          value={milestonePct(data.retention, 'm10') == null ? null : fmtPct(milestonePct(data.retention, 'm10'))}
+          sub="of new agents still writing at month 10"
+        />
+      </StatRow>
 
       {/* Onboarding first (owner 10-13): days to first policy and the $5K / $10K
           milestones sit right under the headline stats. */}
       <div className="cx-grid cx-grid-hero">
         <section className="cx-panel">
           <div className="cx-eyebrow">Days to first policy · by join month</div>
-          <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap', marginTop: 8 }}>
-            <div>
-              <div className="cx-kpi-figure">{days(fp.median_days)}</div>
-              <div className="cx-kpi-sub">median, new agent to first policy</div>
-            </div>
+          <StatRow look="cx" cols={4} size="lg" fitChars={7} style={{ marginTop: 10 }} testId="cx-first-policy-row">
+            <CxStatTile label="Median" title="Median, new agent to first policy" value={fp.median_days == null ? null : days(fp.median_days)} sub="new agent to first policy" />
             {([[30, fp.within30, fp.eligible30], [60, fp.within60, fp.eligible60], [90, fp.within90, fp.eligible90]] as const).map(([d, n, of]) => (
-              <div key={d}>
-                <div className="cx-kpi-figure">{fmtPct(ratio(n, of))}</div>
-                <div className="cx-kpi-sub">wrote within {d} days</div>
-              </div>
+              <CxStatTile key={d} label={`Within ${d} days`} value={ratio(n, of) == null ? null : fmtPct(ratio(n, of))} sub="wrote a first policy" />
             ))}
-          </div>
+          </StatRow>
           {trend.length > 0 && (
             <div style={{ marginTop: 14 }}>
               <Columns labels={trend.map((j) => mLabel(j.m))} series={[{ key: 'd', label: 'Median days to first policy', values: trend.map((j) => Math.round(j.median_days ?? 0)), color: INK }]} format={(n) => `${n} days`} ariaLabel="Median days to first policy by join month" />
@@ -126,16 +115,10 @@ export default function TeamPeople({ data, computedAt, orgName }: { data: People
 
         <section className="cx-panel">
           <div className="cx-eyebrow">Milestones · new agents</div>
-          <div style={{ display: 'grid', gap: 14, marginTop: 10 }}>
-            <div>
-              <div className="cx-kpi-figure">{days(fp.median5k)}</div>
-              <div className="cx-kpi-sub">median to $5K annual premium · {fmtCount(fp.reached5k)} agents got there</div>
-            </div>
-            <div>
-              <div className="cx-kpi-figure">{days(fp.median10k)}</div>
-              <div className="cx-kpi-sub">median to $10K annual premium · {fmtCount(fp.reached10k)} agents got there</div>
-            </div>
-          </div>
+          <StatRow look="cx" cols={2} size="lg" fitChars={7} style={{ marginTop: 10 }} testId="cx-milestone-row">
+            <CxStatTile label="Median to $5K" title="Median to $5K annual premium" value={fp.median5k == null ? null : days(fp.median5k)} sub={`${fmtCount(fp.reached5k)} agents got there`} />
+            <CxStatTile label="Median to $10K" title="Median to $10K annual premium" value={fp.median10k == null ? null : days(fp.median10k)} sub={`${fmtCount(fp.reached10k)} agents got there`} />
+          </StatRow>
           {lines.length > 0 && (
             <>
               <div className="cx-eyebrow" style={{ marginTop: 18 }}>6-month persistency · new agents vs everyone else</div>
