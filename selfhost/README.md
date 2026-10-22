@@ -8,7 +8,7 @@ Supabase: one `docker compose` stack, one installer, one test.
 | `app` | `suitecxo-app` (`app.Dockerfile`, Next.js `output: standalone`) | the Ciao chat page + dashboard | Vercel |
 | `worker` | `suitecxo-worker` (`worker.Dockerfile`, `hetzner-worker/index.ts`) | background ticks (briefs, reminders, inbox) | Hetzner worker under pm2 |
 | `db` | `pgvector/pgvector:pg16` + `pg_cron` (`db/Dockerfile`) | Postgres 16, vector search | Supabase DB |
-| `migrate` | same as `db`, one-shot | applies `supabase/*.sql` in `db/migrations.txt` order; new files only on later boots | Supabase migrations |
+| `migrate` | same as `db`, one-shot | fresh box: applies `db/baseline.sql` (the live schema, no rows); every boot: applies the files listed after `# baseline` in `db/migrations.txt`, once each | Supabase migrations |
 | `postgrest` | `postgrest/postgrest:v12` | the REST API `@supabase/supabase-js` calls, behind Caddy's internal `:8000/rest/v1` | Supabase API |
 | `caddy` | `caddy:2.8` | HTTPS on the office network with the box's own CA (`tls internal`) | Vercel edge |
 | `ofelia` | `mcuadros/ofelia` | calls `/api/cron/*` with `CRON_SECRET` (`ofelia/config.ini`) | Vercel crons |
@@ -71,7 +71,17 @@ scratch database, compares table counts, drops it).
 | stop (keeps data) | `docker compose stop` |
 | remove (keeps data volumes) | `docker compose down` |
 
+## Schema: why a baseline
+`supabase/*.sql` is not a full history (some live tables, e.g. `plaud_notes`,
+`onboarding_tokens`, were made outside the repo), so a fresh replay fails. 
+`db/baseline.sql` is the live Suite CXO public schema (tables, constraints,
+functions, indexes, triggers, RLS; schema only, no rows), generated read-only from
+the catalogs with `db/baseline-generate.sql`. New migrations are appended BELOW the
+`# baseline` line in `db/migrations.txt` (the vitest guard fails if one is missing).
+Regenerate the baseline when the list below the line gets long.
+
 ## Notes and limits (v1)
+- Building the app image needs internet (next/font fetches Google fonts; the build retries 3 times). The built image runs offline.
 - Docker publishes ports past ufw. Only Caddy (on `BIND_ADDR`) and the health agent (on 127.0.0.1) publish.
 - Every container has a CPU and memory limit (about 7 GB total).
 - The app routes `localhost` and bare IPs to Suite CXO (`LOCAL_BRAND=cxo`). A named host such as `ciao.acme.local` needs a host mapping in `lib/brand.ts` (open item).
