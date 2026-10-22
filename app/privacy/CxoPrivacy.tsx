@@ -153,8 +153,11 @@ export function CxoPrivacy({ brand }: { brand: BrandConfig }) {
           our payment processor Whop sets a cookie with a random visitor ID, reads basic details of your device
           (browser, screen size, language and time zone) to recognise a returning visitor, and records the pages
           you visit there. When you book a call or sign your company up, we also send Whop your name and email, so
-          we can tell which ads and links lead to a sign-up or payment. If your browser sends Global Privacy
-          Control, none of this runs. We use no other advertising or analytics cookies.
+          we can tell which ads and links lead to a sign-up or payment. If you reach us from one of our own ads
+          on Facebook or Instagram and then pay, our server tells Meta that a purchase happened and its amount,
+          with your email and phone scrambled (hashed) first, so Meta can match the purchase to the ad. We send
+          Meta nothing else. If your browser sends Global Privacy Control, none of this runs, and we send Meta
+          nothing. We use no other advertising or analytics cookies.
         </p>
       </section>
 

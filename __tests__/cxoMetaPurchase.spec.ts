@@ -9,7 +9,7 @@ const fbp = 'fb.1.1729600000000.1234567890'
 const pay = (md: Record<string, unknown> = {}) => ({
   id: 'pay_abc',
   user: { email: ' Owner@Example.com ', phone: '(555) 123-4567' },
-  metadata: { app: 'suitecxo', ad_fbc: fbc, ad_fbp: fbp, ad_ua: 'UA/1', ad_url: 'https://suitecxo.com/start?utm_source=fb&fbclid=x', ...md },
+  metadata: { app: 'suitecxo', ad_gpc: '0', ad_fbc: fbc, ad_fbp: fbp, ad_ua: 'UA/1', ad_url: 'https://suitecxo.com/start?utm_source=fb&fbclid=x', ...md },
 })
 const okFetch = () => vi.fn(async () => new Response('{}', { status: 200 })) as unknown as typeof fetch
 
@@ -24,6 +24,14 @@ describe('CXO Meta Purchase (our own ads)', () => {
   it('sends nothing under Global Privacy Control', async () => {
     const f = okFetch()
     expect(await sendCxoPurchase(pay({ ad_gpc: '1' }), 50000, { env, fetchImpl: f })).toBe('gpc')
+    expect(f).not.toHaveBeenCalled()
+  })
+
+  it('fails closed: no GPC signal on the checkout sends nothing', async () => {
+    const f = okFetch()
+    expect(await sendCxoPurchase(pay({ ad_gpc: undefined }), 50000, { env, fetchImpl: f })).toBe('gpc')
+    expect(await sendCxoPurchase({ id: 'pay_x', metadata: { app: 'suitecxo', kind: 'cxo_build_fee' } }, 50000, { env, fetchImpl: f })).toBe('gpc')
+    expect(await sendCxoPurchase(pay({ ad_gpc: 'yes' }), 50000, { env, fetchImpl: f })).toBe('gpc')
     expect(f).not.toHaveBeenCalled()
   })
 
@@ -67,6 +75,6 @@ describe('CXO Meta Purchase (our own ads)', () => {
   })
 
   it('needs a payment id', async () => {
-    expect(await sendCxoPurchase({ metadata: {} }, 1, { env, fetchImpl: okFetch() })).toBe('no_payment')
+    expect(await sendCxoPurchase({ metadata: { ad_gpc: '0' } }, 1, { env, fetchImpl: okFetch() })).toBe('no_payment')
   })
 })

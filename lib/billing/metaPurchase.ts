@@ -14,8 +14,9 @@
 // cannot double count; the webhook's own webhook-id table stops reprocessing
 // after a success.
 //
-// PRIVACY. Email and phone are SHA-256 hashed before they leave. A checkout
-// that carried Global Privacy Control (metadata ad_gpc = "1") sends nothing.
+// PRIVACY. Email and phone are SHA-256 hashed before they leave. It sends ONLY
+// when the checkout metadata says the buyer's browser was checked and sent no
+// Global Privacy Control (ad_gpc = "0"); a missing signal sends nothing.
 // custom_data is currency + value only. Never throws: a conversion never fails
 // a payment webhook.
 
@@ -108,7 +109,12 @@ export async function sendCxoPurchase(
     const pixelId = s(env[CXO_PIXEL_ENV])
     const token = s(env[CXO_CAPI_TOKEN_ENV])
     if (!pixelId || !token) return 'no_pixel'
-    if (String(o(data.metadata).ad_gpc ?? '') === '1') return 'gpc'
+    // FAIL CLOSED on privacy: send only when the buyer's own browser was checked
+    // and carried no Global Privacy Control (metadata ad_gpc === "0"). Missing,
+    // "1" or anything else sends nothing. Today no CXO checkout stamps ad_gpc
+    // (the build-fee link is made by an admin, server-side), so this stays off
+    // until a buyer-facing checkout route captures it (compliance 2026-10-22).
+    if (String(o(data.metadata).ad_gpc ?? '') !== '0') return 'gpc'
     const event = cxoPurchaseEvent(data, valueCents, opts.now)
     if (!event) return 'no_payment'
     const f = opts.fetchImpl ?? fetch
@@ -118,6 +124,8 @@ export async function sendCxoPurchase(
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ data: [event], access_token: token, ...(testCode ? { test_event_code: testCode } : {}) }),
+      // A hung Meta call must not push the webhook past Whop's timeout.
+      signal: AbortSignal.timeout(5000),
     })
     if (!res.ok) {
       console.error(`[cxo-meta-purchase] Meta answered ${res.status} for ${String(event.event_id)}`)
