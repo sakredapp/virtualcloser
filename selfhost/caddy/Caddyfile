@@ -1,0 +1,37 @@
+# Caddy on a self-hosted Suite CXO box.
+{
+	# No admin API on the network.
+	admin off
+	# Never call out for certificates: the box issues its own (local CA). The
+	# client's IT can trust the CA at /data/caddy/pki/authorities/local/root.crt,
+	# or swap `tls internal` for their own cert files.
+	auto_https disable_redirects
+	local_certs
+}
+
+# The office-facing site: HTTPS with the box's own certificate.
+# SITE_HOST is the name or IP staff type (set by install.sh).
+{$SITE_HOST:localhost} {
+	tls internal
+	encode gzip
+	reverse_proxy app:3000
+}
+
+# Plain HTTP on the same host, for the health agent and first-boot checks.
+http://{$SITE_HOST:localhost} {
+	redir https://{host}{uri} 308
+}
+
+# Internal only (not published): the Supabase-shaped API the app and worker
+# call. supabase-js asks for /rest/v1/<table>; PostgREST serves /<table>.
+:8000 {
+	handle_path /rest/v1/* {
+		reverse_proxy postgrest:3000
+	}
+	handle /healthz {
+		respond "ok" 200
+	}
+	handle {
+		respond "not found" 404
+	}
+}

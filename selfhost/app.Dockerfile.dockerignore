@@ -1,0 +1,13 @@
+**/node_modules
+.next
+.git
+.env
+.env.*
+!selfhost/.env.example
+native
+docs
+evals
+voice-agent-prompts
+__tests__
+**/*.log
+selfhost/data
