@@ -145,44 +145,13 @@ export default function SizingCalculator({ bookHref }: { bookHref: string }) {
 
         <dl className="cxs-calc-lines">
           <div className="is-big">
-            <dt>{r.tier === 'rented' ? 'Setup, one time' : 'Hardware, one time'}</dt>
-            <dd>{formatRange(r.hardware)}</dd>
-          </div>
-          <div className="is-big">
-            <dt>Running cost, monthly</dt>
-            <dd>{formatRange(r.monthly)}</dd>
-          </div>
-          {r.tier === 'rented' ? (
-            <div>
-              <dt>Server rent</dt>
-              <dd>{formatRange(p.rent)}</dd>
-            </div>
-          ) : (
-            <>
-              <div>
-                <dt>Power and cooling</dt>
-                <dd>{formatRange(p.power)}</dd>
-              </div>
-              <div>
-                <dt>Battery backup upkeep</dt>
-                <dd>{formatRange(p.ups)}</dd>
-              </div>
-            </>
-          )}
-          <div>
-            <dt>Care plan: updates, monitoring, fixes</dt>
-            <dd>{formatRange([p.care, p.care])}</dd>
-          </div>
-          <div>
             <dt>Our build and setup, one time</dt>
             <dd>{formatRange([r.buildFee, r.buildFee])}</dd>
           </div>
-          {r.fineTuneRun && (
-            <div>
-              <dt>Training on your work, each run</dt>
-              <dd>{formatRange(r.fineTuneRun)}</dd>
-            </div>
-          )}
+          <div className="is-big">
+            <dt>Care plan, monthly: updates, monitoring, fixes</dt>
+            <dd>{formatRange([p.care, p.care])}</dd>
+          </div>
           <div>
             <dt>Storage</dt>
             <dd>{r.storageTb} TB</dd>
@@ -195,8 +164,8 @@ export default function SizingCalculator({ bookHref }: { bookHref: string }) {
           </Link>
         </div>
         <p className="cxs-note">
-          Estimates from current hardware prices. The private server isn&rsquo;t available yet; we&rsquo;ll confirm the size and
-          price on a call.
+          {r.tier === 'rented' ? 'The server rent' : 'The hardware'} is quoted on the call. The private server isn&rsquo;t available
+          yet; we&rsquo;ll confirm the size and price on a call.
         </p>
       </aside>
     </div>

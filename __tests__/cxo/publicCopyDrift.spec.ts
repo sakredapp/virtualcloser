@@ -74,10 +74,10 @@ function copyOf(src: string): string {
 }
 
 describe('public demo (/cxo/demo)', () => {
-  const files = ['app/cxo/demo/CxoDemo.tsx', 'app/cxo/demo/DemoPartners.tsx', 'app/cxo/demo/DemoPhone.tsx', 'app/cxo/demo/page.tsx']
+  const files = ['app/cxo/demo/CxoDemo.tsx', 'app/cxo/demo/DemoPartners.tsx', 'app/cxo/demo/DemoPhone.tsx', 'app/cxo/demo/DemoPeople.tsx', 'app/cxo/demo/DemoMessages.ts', 'app/cxo/demo/page.tsx']
   it('names no carriers and is not an insurance agency', () => {
     for (const f of files) {
-      expect(copyOf(read(f)), f).not.toMatch(/Athene|Foresters|Mutual of Omaha|Americo|Transamerica|Aetna|annuity|final expense|mortgage protection|carrier|polic(y|ies)|premium|enrollment|underwrit/i)
+      expect(copyOf(read(f)), f).not.toMatch(/Athene|Foresters|Mutual of Omaha|Americo|Transamerica|Aetna|annuity|final expense|mortgage protection|carrier|polic(y|ies)|premium|enrollment|underwrit|agenc(y|ies)|producer|contracting|commission/i)
     }
   })
   it('the copy scan sees literals and JSX text but not field names', () => {
@@ -90,13 +90,21 @@ describe('public demo (/cxo/demo)', () => {
     expect(PHONE_STARTERS.join(' ')).not.toMatch(/target/i)
   })
   it('does not freeze the date', () => {
-    const src = read('app/cxo/demo/CxoDemo.tsx') + read('app/cxo/demo/DemoPartners.tsx')
-    expect(src).not.toMatch(/2026-10-08|Date\.UTC\(2026, 9, 8|October 8|Oct 8|Thursday, October 8/)
+    const src = ['CxoDemo.tsx', 'DemoPartners.tsx', 'DemoPeople.tsx', 'DemoMessages.ts'].map((f) => read(`app/cxo/demo/${f}`)).join('\n')
+    expect(src).not.toMatch(/'2026-\d\d-\d\d'|2026-10-08|Date\.UTC\(2026, 9, 8|October 8|Oct 8|Thursday, October 8/)
   })
   it('describes the real nav in its meta description', () => {
     const page = read('app/cxo/demo/page.tsx')
     expect(page).toMatch(/Revenue, team, employees, partners, calendar, meetings and settings/i)
     expect(page).not.toMatch(/performance, reports|recordings and integrations/i)
+  })
+})
+
+describe('demo adoption data', () => {
+  it('has no insurance titles and no Boards page', () => {
+    const src = read('lib/cxoAdoptionShared.ts')
+    const demo = src.slice(src.indexOf('const DEMO_PEOPLE'))
+    expect(demo).not.toMatch(/Carrier|Licensing|Agent support|Commissions|Contracting|\/dashboard\/boards/)
   })
 })
 

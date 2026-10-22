@@ -78,9 +78,70 @@ export type ExecOverviewProps = {
   performanceHref?: string
   /** Saved layout (tiles, timeframe, pinned KPIs, notes). Untouched prefs draw the full default layout. */
   prefs?: DashboardPrefs | null
+  /** The words the cards use. Defaults are the book-of-business words the product shows; the public demo passes its own (a services company). */
+  words?: Partial<ExecWords>
 }
 
-const LINES = ['Health', 'Life', 'Annuity']
+/** Every business word the cards print, so the public demo is not an insurance agency. */
+export type ExecWords = {
+  /** The three lines the book is split into. */
+  lines: string[]
+  /** "<org> master book" */
+  book: string
+  /** "from the book of business" */
+  bookOfBusiness: string
+  /** The money measured: "premium". */
+  money: string
+  /** Booked and collected money: "submitted", "issued". Lower case. */
+  submitted: string
+  issued: string
+  /** Counted things: "policy", "policies". */
+  unit: string
+  units: string
+  /** A unit counted in: "written". */
+  written: string
+  /** "placed", "Placement rate", "Placement". */
+  placed: string
+  placementRate: string
+  placement: string
+  /** Funnel stages after written. */
+  paidStage: string
+  outStage: string
+  /** "Product mix", "product-line". */
+  mix: string
+  lineWord: string
+  /** Groups and people: "agency", "agent". */
+  group: string
+  groups: string
+  person: string
+  people: string
+}
+
+export const BOOK_WORDS: ExecWords = {
+  lines: ['Health', 'Life', 'Annuity'],
+  book: 'master book',
+  bookOfBusiness: 'book of business',
+  money: 'premium',
+  submitted: 'submitted',
+  issued: 'issued',
+  unit: 'policy',
+  units: 'policies',
+  written: 'written',
+  placed: 'placed',
+  placementRate: 'Placement rate',
+  placement: 'Placement',
+  paidStage: 'Issued and paid',
+  outStage: 'Declined or lapsed',
+  mix: 'Product mix',
+  lineWord: 'product-line',
+  group: 'agency',
+  groups: 'agencies',
+  person: 'agent',
+  people: 'agents',
+}
+
+const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1)
+
 const MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 /** Default tile order when nothing has been customised. */
@@ -147,7 +208,11 @@ function Kpi({ eyebrow, figure, sub, d, suffix, spark, color = INK, scope, throu
 
 export default function ExecOverview(props: ExecOverviewProps) {
   const { orgName, pinnacleRows, statusRows, books, variant, lastSynced, syncError, tables, performanceHref = '/dashboard/pinnacle', prefs, reconciled = false } = props
-  const SCOPE = `All teams · Health, Life, Annuity · ${orgName} master book`
+  const w = { ...BOOK_WORDS, ...props.words }
+  const LINES = w.lines
+  const Sub = cap(w.submitted)
+  const Iss = cap(w.issued)
+  const SCOPE = `All teams · ${LINES.join(', ')} · ${orgName} ${w.book}`
   const now = useMemo(() => (props.now ? new Date(props.now + 'T12:00:00Z') : new Date()), [props.now])
   const year = now.getUTCFullYear()
   const dataThrough = useMemo(() => props.dataThrough ?? dataThroughOf(pinnacleRows), [props.dataThrough, pinnacleRows])
@@ -174,7 +239,8 @@ export default function ExecOverview(props: ExecOverviewProps) {
   const series36 = useMemo(() => monthlySeries(pinnacleRows, statusRows, 36, anchor), [pinnacleRows, statusRows, anchor])
   const lineSeries = useMemo(
     () => Object.fromEntries(LINES.map((l) => [l, monthlySeries(pinnacleRows, statusRows, 36, anchor, l)])) as Record<string, MonthPoint[]>,
-    [pinnacleRows, statusRows, anchor],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [pinnacleRows, statusRows, anchor, LINES.join('|')],
   )
   const byKey = useMemo(() => new Map(series36.map((p) => [p.key, p])), [series36])
 
@@ -203,7 +269,7 @@ export default function ExecOverview(props: ExecOverviewProps) {
   const { cur, prev: prevPeriod } = window
   const months = cur.length
   const sameLastYear = useMemo(() => cur.map((p) => byKey.get(`${Number(p.key.slice(0, 4)) - 1}${p.key.slice(4)}`) ?? null), [cur, byKey])
-  const scope = line === 'All' ? SCOPE : `All teams · ${line} only · ${orgName} master book`
+  const scope = line === 'All' ? SCOPE : `All teams · ${line} only · ${orgName} ${w.book}`
   const tfLabel = window.label
   const vsPrev = months === 1 ? 'vs the month before' : `vs the ${months} months before`
 
@@ -339,7 +405,7 @@ export default function ExecOverview(props: ExecOverviewProps) {
       <p className="cx-takeaway" style={{ margin: '6px 0 0', fontSize: 15, color: 'var(--cx-ink)' }}>
         {MONTHS_LONG[month.m0]} data still syncing · data through {fmtDay(dataThrough)}
       </p>
-      <p className="cx-takeaway" style={{ margin: '4px 0 0' }}>Month-to-date figures appear here once {MONTHS_LONG[month.m0]} matches the book of business.</p>
+      <p className="cx-takeaway" style={{ margin: '4px 0 0' }}>Month-to-date figures appear here once {MONTHS_LONG[month.m0]} matches the {w.bookOfBusiness}.</p>
     </section>
   ) : (
     <section className="cx-panel">
@@ -350,7 +416,7 @@ export default function ExecOverview(props: ExecOverviewProps) {
             {month.through > 0 ? `${month.short} 1 – ${month.short} ${month.through} · ${month.through} of ${month.dim} days` : `No ${month.short} rows in the book yet`}
           </div>
           <div className="cx-figure-hero" style={{ marginTop: 8 }}>{fmtMoney(month.mtd.premium)}</div>
-          <div className="cx-kpi-sub">submitted month to date · <b style={{ fontWeight: 500, color: 'var(--cx-ink)' }}>{fmtMoney(month.mtd.funded)}</b> issued · {fmtCount(month.mtd.policies)} policies</div>
+          <div className="cx-kpi-sub">{w.submitted} month to date · <b style={{ fontWeight: 500, color: 'var(--cx-ink)' }}>{fmtMoney(month.mtd.funded)}</b> {w.issued} · {fmtCount(month.mtd.policies)} {w.units}</div>
           <div className="cx-days" aria-hidden>
             <i style={{ width: `${(month.through / month.dim) * 100}%` }} />
           </div>
@@ -367,7 +433,7 @@ export default function ExecOverview(props: ExecOverviewProps) {
           </div>
         </div>
       </div>
-      <Scope scope={`${SCOPE} · daily submitted premium`} through={dataThrough} />
+      <Scope scope={`${SCOPE} · daily ${w.submitted} ${w.money}`} through={dataThrough} />
     </section>
   )
 
@@ -395,11 +461,11 @@ export default function ExecOverview(props: ExecOverviewProps) {
   const topAgenciesBlock =
     variant === 'home' && showMtd && monthEnd ? (
       <section className="cx-panel cx-top-agencies" aria-labelledby="top-agencies">
-        <div className="cx-eyebrow" id="top-agencies">Top agencies · this month</div>
+        <div className="cx-eyebrow" id="top-agencies">Top {w.groups} · this month</div>
         {topAgencies === null ? (
           <p className="cx-kpi-sub" style={{ marginTop: 12 }}>Loading…</p>
         ) : topAgencies.length === 0 ? (
-          <p className="cx-kpi-sub" style={{ marginTop: 12 }}>No agency totals for {month.short} yet.</p>
+          <p className="cx-kpi-sub" style={{ marginTop: 12 }}>No {w.group} totals for {month.short} yet.</p>
         ) : (
           <ol className="cx-rank">
             {topAgencies.map((r, i) => (
@@ -417,15 +483,15 @@ export default function ExecOverview(props: ExecOverviewProps) {
           </ol>
         )}
         <p className="cx-scope" style={{ marginTop: 14 }}>
-          Submitted premium, {month.short} 1–{month.through}, {month.y}
+          {Sub} {w.money}, {month.short} 1–{month.through}, {month.y}
         </p>
       </section>
     ) : null
 
   // ── Hero: submitted vs issued over the window ──────────────────────────
   const heroSeries = [
-    { key: 'sub', label: 'Submitted', values: cur.map((p) => p.premium), color: INK, fill: true, width: 2.25 },
-    { key: 'iss', label: 'Issued', values: cur.map((p) => p.funded), color: SILVER, width: 2 },
+    { key: 'sub', label: Sub, values: cur.map((p) => p.premium), color: INK, fill: true, width: 2.25 },
+    { key: 'iss', label: Iss, values: cur.map((p) => p.funded), color: SILVER, width: 2 },
   ]
   const peak = cur.reduce((b, p) => (p.premium > (b?.premium ?? -1) ? p : b), cur[0] as MonthPoint | undefined)
   // "This month" swaps the monthly wave for daily columns (the month so far).
@@ -436,10 +502,10 @@ export default function ExecOverview(props: ExecOverviewProps) {
     <section className="cx-panel">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
         <div>
-          <div className="cx-eyebrow">Submitted vs issued premium · {tfLabel}{dailyView ? ' · by day' : ''}</div>
+          <div className="cx-eyebrow">{Sub} vs {w.issued} {w.money} · {tfLabel}{dailyView ? ' · by day' : ''}</div>
           <div className="cx-figure-hero">{fmtMoney(submittedCur)}</div>
           <div className="cx-kpi-sub">
-            submitted · <b style={{ fontWeight: 500, color: 'var(--cx-ink)' }}>{fmtMoney(issuedCur)}</b> issued · {fmtPct(placementCur)} placed
+            {w.submitted} · <b style={{ fontWeight: 500, color: 'var(--cx-ink)' }}>{fmtMoney(issuedCur)}</b> {w.issued} · {fmtPct(placementCur)} {w.placed}
           </div>
           <div className="cx-chips" style={{ marginTop: 8 }}>
             <DeltaTag d={deltaOf(submittedCur, submittedPrev)} suffix={vsPrev} />
@@ -454,36 +520,36 @@ export default function ExecOverview(props: ExecOverviewProps) {
           <Columns
             labels={dailyPts.map((d) => `${month.short} ${d.day}`)}
             series={[
-              { key: 'sub', label: 'Submitted', values: dailyPts.map((d) => d.premium), color: INK },
-              { key: 'iss', label: 'Issued', values: dailyPts.map((d) => d.funded), color: SILVER },
+              { key: 'sub', label: Sub, values: dailyPts.map((d) => d.premium), color: INK },
+              { key: 'iss', label: Iss, values: dailyPts.map((d) => d.funded), color: SILVER },
             ]}
             height={240}
             format={fmtMoney}
-            ariaLabel={`Daily submitted and issued premium, ${month.name}`}
+            ariaLabel={`Daily ${w.submitted} and ${w.issued} ${w.money}, ${month.name}`}
           />
         ) : (
-          <WaveChart series={heroSeries} labels={cur.map((p) => (months > 12 ? p.longLabel : p.label))} height={240} format={fmtMoney} ariaLabel={`Monthly submitted and issued premium, ${tfLabel}`} />
+          <WaveChart series={heroSeries} labels={cur.map((p) => (months > 12 ? p.longLabel : p.label))} height={240} format={fmtMoney} ariaLabel={`Monthly ${w.submitted} and ${w.issued} ${w.money}, ${tfLabel}`} />
         )}
       </div>
       <ul className="cx-legend">
         <li>
-          <i style={{ background: INK }} /> Submitted
+          <i style={{ background: INK }} /> {Sub}
         </li>
         <li>
-          <i style={{ background: SILVER }} /> Issued
+          <i style={{ background: SILVER }} /> {Iss}
         </li>
       </ul>
       <p className="cx-takeaway">
         {dailyView && peakDay && peakDay.premium > 0 ? (
           <>
-            Best day so far was <strong>{month.short} {peakDay.day}</strong> at {fmtMoney(peakDay.premium)} submitted. {month.vsLastMonth.pct != null ? `The month so far is ${deltaWords(month.vsLastMonth)} on the same ${month.through} days last month.` : 'No prior month to compare against yet.'}
+            Best day so far was <strong>{month.short} {peakDay.day}</strong> at {fmtMoney(peakDay.premium)} {w.submitted}. {month.vsLastMonth.pct != null ? `The month so far is ${deltaWords(month.vsLastMonth)} on the same ${month.through} days last month.` : 'No prior month to compare against yet.'}
           </>
         ) : peak && peak.premium > 0 ? (
           <>
-            Best month was <strong>{peak.longLabel}</strong> at {fmtMoney(peak.premium)} submitted. {submittedPrev > 0 ? `This period is ${deltaWords(deltaOf(submittedCur, submittedPrev))} on the period before it.` : 'No prior period to compare against yet.'}
+            Best month was <strong>{peak.longLabel}</strong> at {fmtMoney(peak.premium)} {w.submitted}. {submittedPrev > 0 ? `This period is ${deltaWords(deltaOf(submittedCur, submittedPrev))} on the period before it.` : 'No prior period to compare against yet.'}
           </>
         ) : (
-          'No premium in this window yet.'
+          `No ${w.money} in this window yet.`
         )}
       </p>
       <Scope scope={scope} through={dataThrough} />
@@ -493,10 +559,10 @@ export default function ExecOverview(props: ExecOverviewProps) {
   // ── Four KPI cards ─────────────────────────────────────────────────────
   const kpiBlock = (
     <StatRow look="cx" cols={4} testId="cx-kpi-row">
-      <Kpi eyebrow={`Submitted premium · ${tfLabel}`} figure={fmtMoney(submittedCur)} d={deltaOf(submittedCur, submittedPrev)} suffix={vsPrev} spark={cur.map((p) => p.premium)} scope={scope} through={dataThrough} />
-      <Kpi eyebrow={`Issued premium · ${tfLabel}`} figure={fmtMoney(issuedCur)} d={deltaOf(issuedCur, issuedPrev)} suffix={vsPrev} spark={cur.map((p) => p.funded)} scope={scope} through={dataThrough} />
-      <Kpi eyebrow={`Placement rate · ${tfLabel}`} figure={fmtPct(placementCur)} sub="issued ÷ submitted premium" d={deltaOf(placementCur ?? 0, placementPrev ?? 0)} suffix={vsPrev} spark={cur.map((p) => (p.premium ? p.funded / p.premium : 0))} scope={scope} through={dataThrough} />
-      <Kpi eyebrow={`Policies written · ${tfLabel}`} figure={fmtCount(policiesCur)} d={deltaOf(policiesCur, policiesPrev)} suffix={vsPrev} spark={cur.map((p) => p.policies)} scope={scope} through={dataThrough} />
+      <Kpi eyebrow={`${Sub} ${w.money} · ${tfLabel}`} figure={fmtMoney(submittedCur)} d={deltaOf(submittedCur, submittedPrev)} suffix={vsPrev} spark={cur.map((p) => p.premium)} scope={scope} through={dataThrough} />
+      <Kpi eyebrow={`${Iss} ${w.money} · ${tfLabel}`} figure={fmtMoney(issuedCur)} d={deltaOf(issuedCur, issuedPrev)} suffix={vsPrev} spark={cur.map((p) => p.funded)} scope={scope} through={dataThrough} />
+      <Kpi eyebrow={`${w.placementRate} · ${tfLabel}`} figure={fmtPct(placementCur)} sub={`${w.issued} ÷ ${w.submitted} ${w.money}`} d={deltaOf(placementCur ?? 0, placementPrev ?? 0)} suffix={vsPrev} spark={cur.map((p) => (p.premium ? p.funded / p.premium : 0))} scope={scope} through={dataThrough} />
+      <Kpi eyebrow={`${cap(w.units)} ${w.written} · ${tfLabel}`} figure={fmtCount(policiesCur)} d={deltaOf(policiesCur, policiesPrev)} suffix={vsPrev} spark={cur.map((p) => p.policies)} scope={scope} through={dataThrough} />
     </StatRow>
   )
 
@@ -507,11 +573,11 @@ export default function ExecOverview(props: ExecOverviewProps) {
   ]
   const paceBlock = (
     <section className="cx-panel">
-      <div className="cx-eyebrow">Pace · {year} cumulative submitted premium</div>
+      <div className="cx-eyebrow">Pace · {year} cumulative {w.submitted} {w.money}</div>
       <div className="cx-figure">{fmtMoney(pace.ytd)}</div>
       {priorYear ? <DeltaTag d={deltaOf(pace.ytd, pace.lastYtd)} suffix={`vs this point in ${year - 1}`} /> : <span className="cx-yoy">{yoyNote}</span>}
       <div style={{ marginTop: 14 }}>
-        <WaveChart series={paceSeries} labels={pace.labels} height={150} format={fmtMoney} ariaLabel={`Cumulative submitted premium, ${year}${priorYear ? ` versus ${year - 1}` : ''}`} />
+        <WaveChart series={paceSeries} labels={pace.labels} height={150} format={fmtMoney} ariaLabel={`Cumulative ${w.submitted} ${w.money}, ${year}${priorYear ? ` versus ${year - 1}` : ''}`} />
       </div>
       {priorYear && (
         <ul className="cx-legend">
@@ -537,9 +603,9 @@ export default function ExecOverview(props: ExecOverviewProps) {
   const mixSlices = LINES.map((l, i) => ({ key: l, label: l, value: sum(lineSeries[l].slice(-months), (p) => p.premium), color: l === moved ? POINT : moved ? (i === 0 ? SILVER : i === 1 ? INK_TINT_2 : INK_TINT_3) : i === 0 ? INK : i === 1 ? SILVER : INK_TINT_2 }))
   const mixBlock = (
     <section className="cx-panel">
-      <div className="cx-eyebrow">Product mix · {tfLabel}</div>
+      <div className="cx-eyebrow">{w.mix} · {tfLabel}</div>
       <div style={{ marginTop: 12 }}>
-        <Donut slices={mixSlices} format={fmtMoney} centerValue={fmtMoney(submittedCur)} centerLabel="submitted" />
+        <Donut slices={mixSlices} format={fmtMoney} centerValue={fmtMoney(submittedCur)} centerLabel={w.submitted} />
       </div>
       <div className="cx-grid cx-grid-3" style={{ marginTop: 12 }}>
         {LINES.map((l) => {
@@ -561,7 +627,7 @@ export default function ExecOverview(props: ExecOverviewProps) {
             <strong>{moved}</strong> moved the most this period; the black slice is the one to look at.
           </>
         ) : (
-          'No product-line movement to call out.'
+          `No ${w.lineWord} movement to call out.`
         )}
       </p>
       <Scope scope={SCOPE} through={dataThrough} />
@@ -571,44 +637,44 @@ export default function ExecOverview(props: ExecOverviewProps) {
   // ── Status funnel (Performance) ────────────────────────────────────────
   const statusBlock = (
     <section className="cx-panel">
-      <div className="cx-eyebrow">Where policies stand · {tfLabel}</div>
+      <div className="cx-eyebrow">Where {w.units} stand · {tfLabel}</div>
       <div style={{ marginTop: 12 }}>
         <StageBars
           format={fmtCount}
           stages={[
-            { key: 'written', label: 'Written', value: funnel.written, color: INK },
+            { key: 'written', label: cap(w.written), value: funnel.written, color: INK },
             { key: 'pending', label: 'Still pending', value: funnel.pending },
-            { key: 'issued', label: 'Issued and paid', value: funnel.issued, color: SILVER, hint: fmtPct(funnel.placement) },
-            { key: 'out', label: 'Declined or lapsed', value: funnel.declined + funnel.lapsed, hint: fmtPct(funnel.written ? (funnel.declined + funnel.lapsed) / funnel.written : null) },
+            { key: 'issued', label: w.paidStage, value: funnel.issued, color: SILVER, hint: fmtPct(funnel.placement) },
+            { key: 'out', label: w.outStage, value: funnel.declined + funnel.lapsed, hint: fmtPct(funnel.written ? (funnel.declined + funnel.lapsed) / funnel.written : null) },
           ]}
         />
       </div>
       <p className="cx-takeaway">
         {funnel.written > 0 ? (
           <>
-            <strong>{fmtPct(funnel.placement)}</strong> of what was written got issued and paid; {fmtPct(funnel.written ? (funnel.declined + funnel.lapsed) / funnel.written : null)} fell out.
+            <strong>{fmtPct(funnel.placement)}</strong> of what was {w.written} got {w.paidStage.toLowerCase()}; {fmtPct(funnel.written ? (funnel.declined + funnel.lapsed) / funnel.written : null)} fell out.
           </>
         ) : (
-          'No policies in this window.'
+          `No ${w.units} in this window.`
         )}
       </p>
-      <Scope scope={`${scope} · policy counts by status`} through={dataThrough} />
+      <Scope scope={`${scope} · ${w.unit} counts by status`} through={dataThrough} />
     </section>
   )
 
   // ── Monthly policies (Performance) ─────────────────────────────────────
   const policiesBlock = (
     <section className="cx-panel">
-      <div className="cx-eyebrow">Policies by month · {tfLabel}</div>
+      <div className="cx-eyebrow">{cap(w.units)} by month · {tfLabel}</div>
       <div style={{ marginTop: 12 }}>
-        <Columns labels={cur.map((p) => (months > 12 ? p.longLabel : p.label))} series={[{ key: 'w', label: 'Written', values: cur.map((p) => p.policies), color: INK }, { key: 'i', label: 'Issued', values: cur.map((p) => p.fundedPolicies), color: SILVER }]} format={fmtCount} ariaLabel="Policies written and issued by month" />
+        <Columns labels={cur.map((p) => (months > 12 ? p.longLabel : p.label))} series={[{ key: 'w', label: cap(w.written), values: cur.map((p) => p.policies), color: INK }, { key: 'i', label: Iss, values: cur.map((p) => p.fundedPolicies), color: SILVER }]} format={fmtCount} ariaLabel={`${cap(w.units)} ${w.written} and ${w.issued} by month`} />
       </div>
       <ul className="cx-legend">
         <li>
-          <i style={{ background: INK }} /> Written
+          <i style={{ background: INK }} /> {cap(w.written)}
         </li>
         <li>
-          <i style={{ background: SILVER }} /> Issued
+          <i style={{ background: SILVER }} /> {Iss}
         </li>
       </ul>
       <Scope scope={scope} through={dataThrough} />
@@ -637,8 +703,8 @@ export default function ExecOverview(props: ExecOverviewProps) {
     return `${MONTHS_LONG[d.getUTCMonth()]} ${d.getUTCFullYear()}`
   })() : null
   const persTiles = (['Life', 'Health'] as const).flatMap((l) => [
-    { key: `${l}6`, label: `${l} · 6-month`, v: persOf(lineSeries[l], 6) },
-    { key: `${l}13`, label: `${l} · 13-month`, v: persOf(lineSeries[l], 13) },
+    { key: `${l}6`, label: `${l} · 6-month`, v: persOf(lineSeries[l] ?? [], 6) },
+    { key: `${l}13`, label: `${l} · 13-month`, v: persOf(lineSeries[l] ?? [], 13) },
   ])
   const worstLapse = lapse12.reduce<{ i: number; v: number }>((a, _p, i) => (lapseVals[i] > a.v ? { i, v: lapseVals[i] } : a), { i: -1, v: 0 })
   const persistencyBlock = (
@@ -731,9 +797,9 @@ export default function ExecOverview(props: ExecOverviewProps) {
       <tr>
         <th scope="col">#</th>
         <th scope="col">{first}</th>
-        <th scope="col">Issued policies</th>
-        <th scope="col">Written</th>
-        <th scope="col">Placement</th>
+        <th scope="col">{Iss} {w.units}</th>
+        <th scope="col">{cap(w.written)}</th>
+        <th scope="col">{w.placement}</th>
         <th scope="col">Share</th>
         <th scope="col">Trend</th>
       </tr>
@@ -754,8 +820,8 @@ export default function ExecOverview(props: ExecOverviewProps) {
     <section className="cx-panel">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
         <div>
-          <div className="cx-eyebrow">Agencies and agents · {tfLabel}</div>
-          <div className="cx-kpi-sub" style={{ marginTop: 2 }}>Ranked by issued policies. Share is of all issued policies; trend is against the period before.</div>
+          <div className="cx-eyebrow">{cap(w.groups)} and {w.people} · {tfLabel}</div>
+          <div className="cx-kpi-sub" style={{ marginTop: 2 }}>Ranked by {w.issued} {w.units}. Share is of all {w.issued} {w.units}; trend is against the period before.</div>
         </div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
           {Seg}
@@ -770,12 +836,12 @@ export default function ExecOverview(props: ExecOverviewProps) {
       </div>
       <div style={{ opacity: bdLoading ? 0.6 : 1, transition: 'opacity .2s' }}>
         {teamRanks.length === 0 && agentRanks.length === 0 ? (
-          <p className="cx-takeaway">{bdLoading ? 'Loading…' : 'No named agencies or agents for this period yet. They fill in as the book syncs.'}</p>
+          <p className="cx-takeaway">{bdLoading ? 'Loading…' : `No named ${w.groups} or ${w.people} for this period yet. They fill in as the ${w.book} syncs.`}</p>
         ) : (
           <>
             {teamRanks.length > 0 && (
               <table className="cx-table cx-rank">
-                {rankHead('Agency')}
+                {rankHead(cap(w.group))}
                 <tbody>
                   {teamRanks.map((t, i) => {
                     const kids = agentsByTeam.get(t.label) ?? []
@@ -789,7 +855,7 @@ export default function ExecOverview(props: ExecOverviewProps) {
                               <button type="button" className="cx-rank-toggle" aria-expanded={open} onClick={() => toggleTeam(t.label)}>
                                 <span className="cx-rank-chev" aria-hidden>›</span>
                                 {t.label}
-                                <span className="cx-rank-count">{kids.length} {kids.length === 1 ? 'agent' : 'agents'}</span>
+                                <span className="cx-rank-count">{kids.length} {kids.length === 1 ? w.person : w.people}</span>
                               </button>
                             ) : (
                               t.label
@@ -813,7 +879,7 @@ export default function ExecOverview(props: ExecOverviewProps) {
             )}
             {!nested && agentRanks.length > 0 && (
               <table className="cx-table cx-rank" style={{ marginTop: teamRanks.length > 0 ? 18 : 10 }}>
-                {rankHead('Agent')}
+                {rankHead(cap(w.person))}
                 <tbody>
                   {agentRanks.map((a, i) => (
                     <tr key={a.label} className={i === 0 ? 'cx-rank-top' : undefined}>
@@ -828,14 +894,14 @@ export default function ExecOverview(props: ExecOverviewProps) {
           </>
         )}
       </div>
-      <Scope scope={`${scope} · names from Team (Parsed) and Agent`} through={dataThrough} />
+      <Scope scope={props.words ? scope : `${scope} · names from Team (Parsed) and Agent`} through={dataThrough} />
     </section>
   )
 
   // ── Team: production charts (writers per month, top 10, new agents) ──
   // Drop empty months before the book starts; the current month is partial.
   const writersAll = props.people?.data.writers_by_month ?? []
-  const firstWriter = writersAll.findIndex((w) => w.n > 0)
+  const firstWriter = writersAll.findIndex((x) => x.n > 0)
   const writers = firstWriter < 0 ? [] : writersAll.slice(firstWriter)
   const peopleToday = props.people?.data.today ?? ''
   const writersPartial = writers.length > 0 && writers[writers.length - 1].m === peopleToday.slice(0, 7)
@@ -843,25 +909,25 @@ export default function ExecOverview(props: ExecOverviewProps) {
   const productionBlock = (
     <div className="cx-grid cx-grid-hero" style={{ alignItems: 'start' }}>
       <section className="cx-panel">
-        <div className="cx-eyebrow">Writing agents per month</div>
+        <div className="cx-eyebrow">{cap(w.people)} with a {w.unit}, per month</div>
         <div style={{ marginTop: 12 }}>
           <Columns
-            labels={writers.map((w) => MONTHS_SHORT[Number(w.m.slice(5, 7)) - 1] ?? w.m)}
-            series={[{ key: 'w', label: 'Agents with a policy', values: writers.map((w) => w.n), color: INK }]}
+            labels={writers.map((x) => MONTHS_SHORT[Number(x.m.slice(5, 7)) - 1] ?? x.m)}
+            series={[{ key: 'w', label: `${cap(w.people)} with a ${w.unit}`, values: writers.map((x) => x.n), color: INK }]}
             format={fmtCount}
             height={240}
             valueLabels
             everyLabel
             partialLast={writersPartial ? 'so far' : undefined}
-            ariaLabel="Agents who wrote at least one policy, by month"
+            ariaLabel={`${cap(w.people)} with at least one ${w.unit}, by month`}
           />
         </div>
-        <Scope scope="Agents with at least one policy (not declined) in the month · Life, Health, Annuity" through={dataThrough} />
+        <Scope scope={props.words ? `${cap(w.people)} with at least one ${w.unit} in the month · ${LINES.join(', ')}` : 'Agents with at least one policy (not declined) in the month · Life, Health, Annuity'} through={dataThrough} />
       </section>
       <section className="cx-panel">
-        <div className="cx-eyebrow">Top 10 agencies · {tfLabel}</div>
-        <BarList rows={top10.map((t) => ({ label: t.label, value: t.paid, hint: `${fmtCount(t.policies)} written` }))} format={(n) => `${fmtCount(n)} issued`} max={10} empty={bdLoading ? 'Loading…' : 'No named agencies in this window yet.'} />
-        <Scope scope={`${scope} · issued policies`} through={dataThrough} />
+        <div className="cx-eyebrow">Top 10 {w.groups} · {tfLabel}</div>
+        <BarList rows={top10.map((t) => ({ label: t.label, value: t.paid, hint: `${fmtCount(t.policies)} ${w.written}` }))} format={(n) => `${fmtCount(n)} ${w.issued}`} max={10} empty={bdLoading ? 'Loading…' : `No named ${w.groups} in this window yet.`} />
+        <Scope scope={`${scope} · ${w.issued} ${w.units}`} through={dataThrough} />
       </section>
     </div>
   )
@@ -898,11 +964,11 @@ export default function ExecOverview(props: ExecOverviewProps) {
       )}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <p className="cx-takeaway" style={{ margin: 0 }}>
-          Data through {fmtDay(dataThrough)}.{lastSynced ? ` Last synced ${lastSynced}.` : ''} Numbers refresh every morning from the book of business.
+          Data through {fmtDay(dataThrough)}.{lastSynced ? ` Last synced ${lastSynced}.` : ''} Numbers refresh every morning from the {w.bookOfBusiness}.
         </p>
         {variant === 'home' && (
           <Link href={performanceHref} className="cx-link">
-            See agencies and agents →
+            See {w.groups} and {w.people} →
           </Link>
         )}
       </div>
@@ -938,8 +1004,8 @@ export default function ExecOverview(props: ExecOverviewProps) {
       case 'trailing_6m_premium':
       case 'trailing_12m_premium': {
         const n = id === 'trailing_3m_premium' ? 3 : id === 'trailing_6m_premium' ? 6 : 12
-        const w = t(n)
-        return { eyebrow: `Submitted premium · last ${n} months`, figure: fmtMoney(sum(w.cur, (p) => p.premium)), d: deltaOf(sum(w.cur, (p) => p.premium), sum(w.prev, (p) => p.premium)), suffix: `on the previous ${n} months`, spark: w.cur.map((p) => p.premium) }
+        const tw = t(n)
+        return { eyebrow: `Submitted premium · last ${n} months`, figure: fmtMoney(sum(tw.cur, (p) => p.premium)), d: deltaOf(sum(tw.cur, (p) => p.premium), sum(tw.prev, (p) => p.premium)), suffix: `on the previous ${n} months`, spark: tw.cur.map((p) => p.premium) }
       }
       case 'policies_issued':
         return { eyebrow: `Policies issued · ${tfLabel}`, figure: fmtCount(sum(cur, (p) => p.fundedPolicies)), d: deltaOf(sum(cur, (p) => p.fundedPolicies), sum(prevPeriod, (p) => p.fundedPolicies)), suffix: vsPrev, spark: cur.map((p) => p.fundedPolicies) }

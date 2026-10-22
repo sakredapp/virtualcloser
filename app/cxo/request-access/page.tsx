@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = cxoPageMeta(
   '/cxo/request-access',
-  'Request access',
+  'Book a call',
   'Tell us about your company and book a call: the Suite CXO cloud plan or a custom build.',
 )
 

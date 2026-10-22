@@ -37,7 +37,7 @@ export function isCxoMarketingHost(host: string | null | undefined): boolean {
 }
 
 /** Public marketing pages, the only ones in the sitemap. Paths as served on www. */
-export const CXO_SITEMAP_PATHS = ['/', '/cxo/request-access', '/privacy', '/terms', '/support'] as const
+export const CXO_SITEMAP_PATHS = ['/', '/cxo/request-access', '/cxo/sizing', '/privacy', '/terms', '/support'] as const
 
 /**
  * Pages on the public host that must never be indexed but may be crawled, so

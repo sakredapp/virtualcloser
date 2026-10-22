@@ -52,8 +52,9 @@ export default async function SupportPage() {
       <section className="card" style={{ marginTop: '0.8rem' }}>
         <div className="section-head"><h2>What {name} is</h2></div>
         <p className="meta">
-          {name} gives a company one AI chief of staff, {n}, that reads the company&apos;s calendar,
-          boards, meetings and numbers and answers each person from what their role can see.
+          {n} by {name} is one company AI your team logs into, connected to your company&apos;s data.
+          Each person only sees what their role allows, your data is never used to train AI, and every
+          answer is checked.
         </p>
       </section>
 
