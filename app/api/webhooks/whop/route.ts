@@ -12,6 +12,10 @@
 //   membership.deactivated / went_invalid -> canceled
 //   refund.created / dispute.created      -> audit
 //
+// The first purchase (build fee, or the first paid seat) also sends our own
+// Meta Conversions API Purchase (lib/billing/metaPurchase.ts). It is off until
+// CXO_META_PIXEL_ID + CXO_META_CAPI_TOKEN are set, and never fails the webhook.
+//
 // The same Whop business also bills Virtual Closer, so anything that is not a
 // Suite CXO payment (metadata app/kind, or the Suite CXO product) is recorded
 // as ignored and left alone.
@@ -22,6 +26,7 @@ import { audit } from '@/lib/billing/auditLog'
 import { provisionFromOnboardingPayment } from '@/lib/billing/provisionOnboarding'
 import { CXO_WHOP_KINDS, verifyWhopWebhook, whopMoneyToCents } from '@/lib/billing/whop'
 import { cxoMetadata, isCxoObject, obj, str, type Obj } from '@/lib/billing/whopEvents'
+import { sendCxoPurchase } from '@/lib/billing/metaPurchase'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -55,7 +60,8 @@ async function onPaymentSucceeded(data: Obj): Promise<Outcome> {
     await provisionFromOnboardingPayment({ onboardingToken: str(md.onboarding_token), repId, paymentId: paymentId ?? '' })
     if (cents != null) await setRep(repId, { build_fee_paid_cents: cents })
     await audit({ actorKind: 'webhook', action: 'build_fee.paid', repId, whopObjectId: paymentId, amountCents: cents })
-    return { outcome: 'build_fee_paid', rep_id: repId, resource_id: paymentId }
+    const capi = await sendCxoPurchase(data, cents)
+    return { outcome: 'build_fee_paid', rep_id: repId, resource_id: paymentId, detail: { capi } }
   }
 
   if (kind === CXO_WHOP_KINDS.charge) {
@@ -88,7 +94,9 @@ async function onPaymentSucceeded(data: Obj): Promise<Outcome> {
     before: { billing_status: r.billing_status ?? null },
     after: { billing_status: 'active' },
   })
-  return { outcome: 'subscription_paid', rep_id: repId, resource_id: paymentId }
+  // Our own ads' Purchase: the first paid seat only, never a renewal.
+  const capi = r.subscription_activated_at ? null : await sendCxoPurchase(data, cents)
+  return { outcome: 'subscription_paid', rep_id: repId, resource_id: paymentId, ...(capi ? { detail: { capi } } : {}) }
 }
 
 async function onPaymentFailed(data: Obj): Promise<Outcome> {
