@@ -135,6 +135,7 @@ export function CxoPrivacy({ brand }: { brand: BrandConfig }) {
           {item('Google and Intuit', 'Only when you connect Google or QuickBooks, to read and act on those accounts as described above.')}
           {item('Apple and Google push services', 'Deliver phone app notifications, if you allow them.')}
           {item('Whop', 'Our payment processor: processes payments, if you pay. It also measures visits to our public website (not the app) so we can tell which ads and links lead to a sign-up or payment. See Cookies and storage.')}
+          {item('Meta', 'Only if you reach us from one of our own ads on Facebook or Instagram and then pay: we tell Meta a purchase happened and its amount, with your email and phone hashed first, so we can measure our ads. Never if your browser sends Global Privacy Control. See Cookies and storage.')}
         </ul>
         <p className="meta" style={{ marginTop: '0.6rem' }}>
           Inside your company, people see what their role allows: a person&apos;s calendar (and inbox, where included) is seen only by them
