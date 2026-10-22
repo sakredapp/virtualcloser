@@ -35,6 +35,9 @@ describe('Whop Pixel: where it loads', () => {
     const p = read('app/privacy/CxoPrivacy.tsx')
     expect(p).toContain("item('Whop',")
     expect(p).not.toContain('We do not use advertising or third-party analytics cookies')
+    // s.js reads device details, and the guard honours GPC: the page says both.
+    expect(p).toMatch(/reads basic details of your device/)
+    expect(p).toMatch(/Global Privacy\s+Control, none of this runs/)
   })
 
   it('never fires inside the app or on a page whose URL carries a token', () => {

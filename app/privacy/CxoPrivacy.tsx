@@ -150,9 +150,11 @@ export function CxoPrivacy({ brand }: { brand: BrandConfig }) {
           We use a sign-in cookie to keep you logged in (for up to 30 days) and, for executive assistants,
           a cookie that remembers which executive they are working for. Your browser also stores small
           settings such as light or dark mode. On our public website (www.suitecxo.com, not inside the app),
-          our payment processor Whop sets a cookie with a random visitor ID and records the pages you visit
-          there. When you book a call or sign your company up, we also send Whop your name and email, so we can
-          tell which ads and links lead to a sign-up or payment. We use no other advertising or analytics cookies.
+          our payment processor Whop sets a cookie with a random visitor ID, reads basic details of your device
+          (browser, screen size, language and time zone) to recognise a returning visitor, and records the pages
+          you visit there. When you book a call or sign your company up, we also send Whop your name and email, so
+          we can tell which ads and links lead to a sign-up or payment. If your browser sends Global Privacy
+          Control, none of this runs. We use no other advertising or analytics cookies.
         </p>
       </section>
 
