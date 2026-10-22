@@ -77,6 +77,7 @@ services:
       - ../supabase:/migrations:ro
       - ./db/migrations.txt:/selfhost/migrations.txt:ro
       - ./db/migrate.sh:/selfhost/migrate.sh:ro
+      - ./db/baseline.sql:/selfhost/baseline.sql:ro
     restart: "no"
     deploy:
       resources:

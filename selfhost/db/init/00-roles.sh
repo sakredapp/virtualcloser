@@ -20,6 +20,7 @@ alter default privileges in schema public grant all on sequences to service_role
 alter default privileges in schema public grant all on functions to service_role;
 
 create extension if not exists pgcrypto;
+create extension if not exists "uuid-ossp";
 create extension if not exists vector;
 create extension if not exists pg_cron;
 grant usage on schema cron to postgres;

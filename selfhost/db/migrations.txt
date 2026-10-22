@@ -1,6 +1,8 @@
-# Order the migrations are applied on a fresh self-hosted box (first-commit order
-# from git history, schema.sql first). New migration files are appended to the end;
-# selfhost/db/migrate.sh also applies any supabase/*.sql missing from this list, last.
+# Migration order for a self-hosted box (selfhost/db/migrate.sh).
+# Files ABOVE the '# baseline' line are already inside db/baseline.sql (the live
+# schema snapshot of 2026-10-22) and are only recorded, not run, on a fresh box.
+# APPEND every new supabase/*.sql BELOW the '# baseline' line; migrate.sh runs
+# those once each, in this order. __tests__/selfhost.spec.ts checks the list.
 schema.sql
 pipeline_kinds_migration.sql
 pipeline_migration.sql
@@ -116,3 +118,4 @@ cxo_ciao_speed.sql
 whop_billing_migration.sql
 cxo_ciao_answer_check.sql
 cxo_ciao_chat_folders.sql
+# baseline 2026-10-22: new files go below this line

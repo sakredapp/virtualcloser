@@ -1,35 +1,57 @@
 #!/bin/sh
-# Applies supabase/*.sql to the box's Postgres, once each, in the order in
-# selfhost/db/migrations.txt (then any file not listed, alphabetically).
-# Runs on every `docker compose up` as the one-shot "migrate" service; files
-# already applied are skipped (tracked in public.selfhost_migrations), so the
-# first boot applies everything and later boots apply only new files.
+# Brings the box's Postgres to the current Suite CXO schema. Runs on every
+# `docker compose up` as the one-shot "migrate" service.
+#
+# Fresh box: applies selfhost/db/baseline.sql (the live schema, no rows), then
+# records every file listed ABOVE the "# baseline" line in migrations.txt as
+# covered by it. Every boot: applies, once each and in order, the files listed
+# AFTER the "# baseline" line, then any supabase/*.sql not listed at all
+# (alphabetically). Tracked in public.selfhost_migrations.
 set -eu
 : "${PGHOST:=db}" "${PGUSER:=postgres}" "${PGDATABASE:=suitecxo}"
 export PGHOST PGUSER PGDATABASE
 DIR=/migrations
 LIST=/selfhost/migrations.txt
+BASELINE=/selfhost/baseline.sql
 
 until pg_isready -q; do echo "migrate: waiting for db"; sleep 1; done
 
 psql -v ON_ERROR_STOP=1 -qc "create table if not exists public.selfhost_migrations (
   file text primary key, applied_at timestamptz not null default now(), ok boolean not null, error text)"
 
+record() { # record FILE OK ERROR
+  psql -qc "insert into public.selfhost_migrations(file, ok, error) values ('$1', $2, nullif('$3',''))
+            on conflict (file) do update set ok = excluded.ok, error = excluded.error, applied_at = now()"
+}
+
+if [ "$(psql -tAc "select count(*) from public.selfhost_migrations where file = 'baseline.sql' and ok")" = "0" ]; then
+  echo "migrate: fresh database, applying baseline.sql"
+  if out=$(psql -v ON_ERROR_STOP=1 -q -f "$BASELINE" 2>&1); then
+    record baseline.sql true ''
+    # Everything above the "# baseline" marker is already in the baseline.
+    for f in $(awk '/^# baseline/{exit} !/^#/ && NF' "$LIST"); do record "$f" true 'covered by baseline.sql'; done
+  else
+    err=$(printf '%s' "$out" | grep -m1 ERROR | sed "s/'/''/g")
+    echo "migrate: FAILED baseline.sql: $err"
+    record baseline.sql false "$err"
+    exit 1
+  fi
+fi
+
 order=$( (grep -v '^#' "$LIST" | sed '/^$/d'; ls "$DIR" | grep '\.sql$' | sort) | awk '!seen[$0]++')
 applied=0; failed=0; skipped=0
 for f in $order; do
   [ -f "$DIR/$f" ] || continue
-  done_ok=$(psql -tAc "select ok from public.selfhost_migrations where file = '$f'")
-  if [ "$done_ok" = "t" ]; then skipped=$((skipped+1)); continue; fi
+  if [ "$(psql -tAc "select ok from public.selfhost_migrations where file = '$f'")" = "t" ]; then
+    skipped=$((skipped+1)); continue
+  fi
   if out=$(psql -v ON_ERROR_STOP=1 -q -f "$DIR/$f" 2>&1); then
-    psql -qc "insert into public.selfhost_migrations(file, ok) values ('$f', true)
-              on conflict (file) do update set ok = true, error = null, applied_at = now()"
+    record "$f" true ''
     applied=$((applied+1))
   else
     err=$(printf '%s' "$out" | grep -m1 ERROR | sed "s/'/''/g")
     echo "migrate: FAILED $f: $err"
-    psql -qc "insert into public.selfhost_migrations(file, ok, error) values ('$f', false, '$err')
-              on conflict (file) do update set ok = false, error = excluded.error, applied_at = now()"
+    record "$f" false "$err"
     failed=$((failed+1))
   fi
 done

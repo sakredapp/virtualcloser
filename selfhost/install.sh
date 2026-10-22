@@ -77,7 +77,7 @@ docker compose build
 # 4. Admin password: generated once, bcrypt hash into .env, plain copy root-only.
 if [ -z "$(getv ADMIN_PASSWORD_HASH)" ]; then
   pw=$(rand 12)
-  hash=$(docker run --rm -e PW="$pw" suitecxo-app:local node -e "console.log(require('bcryptjs').hashSync(process.env.PW, 12))")
+  hash=$(docker run --rm -e PW="$pw" suitecxo-worker:local node -e "console.log(require('bcryptjs').hashSync(process.env.PW, 12))")
   setv ADMIN_PASSWORD_HASH "$hash"
   umask 077; printf '%s\n' "$pw" > .admin-password; unset pw
   echo "Admin password written to $HERE/.admin-password (root-only). Put it on the build sheet, then delete the file."

@@ -10,7 +10,10 @@ WORKDIR /src
 ENV NEXT_TELEMETRY_DISABLED=1 NODE_OPTIONS=--max-old-space-size=4096
 COPY --from=deps /src/node_modules ./node_modules
 COPY . .
-RUN cp selfhost/next.config.selfhost.mjs next.config.mjs && npx next build
+# next/font downloads the Google fonts at build time (the built image then needs
+# no internet); that fetch is sometimes flaky, so try the build up to 3 times.
+RUN cp selfhost/next.config.selfhost.mjs next.config.mjs \
+ && (npx next build || (sleep 10 && npx next build) || (sleep 30 && npx next build))
 
 FROM node:22-bookworm-slim AS run
 WORKDIR /app
