@@ -56,7 +56,7 @@ export const SETTINGS_TOOL_DEFS: AI.Tool[] = [
       type: 'object',
       properties: {
         key: { type: 'string', description: 'The setting key from list_settings.' },
-        value: { description: 'The new value: on/off, text, a time zone, a list, or an object as explain_setting describes.' },
+        value: { description: 'The new value: on/off, text, a time zone, a list, or an object as explain_setting describes. For people.can_view_comp: "allow", "deny" or "default". When they say "back to the default", "reset", "clear" or "back to normal", send "default", never "off".' },
         target: { type: 'string', description: 'Only for settings about another teammate (people.can_view_comp): their name or email.' },
       },
       required: ['key', 'value'],

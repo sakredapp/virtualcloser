@@ -26,7 +26,7 @@ import { estimateCostUsd, textModelId } from '@/lib/aiProvider'
 import { loadGuidance, renderGuidance } from '@/lib/plaud/guidance'
 import { authorizeToolCall, isEmployeeCaller } from './access'
 import { auditRefusal, runToolWithOps } from '@/lib/ops/agentGate'
-import { CONFIRM_GATE_RULES, proposalText, type PendingAction } from '@/lib/agent/confirmGateShared'
+import { CONFIRM_GATE_RULES, gateApplies, HAND_WRITTEN_CONFIRM_NOTE, looksLikeHandWrittenConfirm, proposalText, type PendingAction } from '@/lib/agent/confirmGateShared'
 import { isParallelReadBatch, readCallKey, REPEAT_READ_NOTE } from './readBatch'
 import { noteCalendarBatch } from '@/lib/agent/calendarWriteGuard'
 import { capMemoryBlock, listMemberMemory, ORG_MEMORY_PROMPT_CAP, renderMemberMemory } from './memberMemory'
@@ -792,6 +792,7 @@ async function runAgentInner(input: RunAgentInput, held: string[], proposals: Pe
   let actionDone = false
   let claimRetried = false
   let pastTalkRetried = false
+  let confirmRetried = false
   /** Read results already returned in this answer, by call key (repeat guard). */
   const seenReads = new Map<string, string>()
   const startedAt = Date.now()
@@ -888,6 +889,17 @@ async function runAgentInner(input: RunAgentInput, held: string[], proposals: Pe
           continue
         }
         replyText = `${replyText}\n\n${UNBACKED_CLAIM_FLAG}`
+      }
+      // Suite CXO app: the app writes every confirmation (lib/agent/confirmGate).
+      // A draft that asks for a yes while no tool proposed anything would make
+      // the person say yes twice (QA 2026-10-23): one corrective turn to call the tool.
+      if (!proposals.length && gateApplies(ctx) && looksLikeHandWrittenConfirm(replyText)) {
+        if (!confirmRetried && turn < MAX_TURNS - 1 && Date.now() - startedAt < HARD_TIMEOUT_MS) {
+          confirmRetried = true
+          messages.push({ role: 'user', content: HAND_WRITTEN_CONFIRM_NOTE })
+          continue
+        }
+        console.warn('[agent] hand-written confirm kept after one retry')
       }
       // A chat with no earlier turns never gets a reply about "what we talked
       // about": one rewrite, then a fixed honest line.

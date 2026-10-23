@@ -36,8 +36,15 @@ export async function describeGatedCall(ctx: AgentContext, name: string, args: R
     const { findEntry, allowed, whoText } = await import('@/lib/settings/registryShared')
     const e = findEntry(args.key)
     if (e && !allowed(e.who, ctx.caller, ctx.tenant)) return { ok: false, result: j({ ok: false, refused: true, error: 'not_allowed_for_role', say: `Not done. ${whoText(e.who)}` }) }
-    const { describeRegistryCall } = await import('@/lib/settings/registry')
-    const lines = describeRegistryCall(name, args)
+    const { describeRegistryCall, resolveTargetName } = await import('@/lib/settings/registry')
+    // A change about a teammate: name them exactly on the card, or ask which one before any yes.
+    let targetName: string | undefined
+    if (name === 'change_setting' && e?.scope === 'member' && e.kind === 'setting') {
+      const t = await resolveTargetName(ctx.tenant.id, args.target)
+      if (!t.ok) return { ok: false, result: j({ ok: false, error: 'ambiguous_or_missing', say: t.error, ...(t.candidates ? { candidates: t.candidates } : {}) }) }
+      targetName = t.name
+    }
+    const lines = describeRegistryCall(name, args, { targetName })
     if (lines) return { ok: true, lines, args: { ...args, key: e?.key ?? args.key } }
   }
 
