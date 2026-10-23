@@ -9,7 +9,7 @@ export type LicencePayload = {
   expires_at: string
 }
 export type LicenceCheck =
-  | { ok: true; licence: LicencePayload; daysLeft: number }
+  | { ok: true; licence: LicencePayload; daysLeft: number; reason?: undefined; expired?: undefined }
   | { ok: false; reason: string; licence?: LicencePayload; expired?: boolean }
 export const PREFIX: string
 export const PUBLIC_KEY_PEM: string

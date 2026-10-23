@@ -63,7 +63,7 @@ describe('licence format', () => {
 
 describe('boot gate (check.mjs)', () => {
   const run = (args: string[], env: Record<string, string>) =>
-    spawnSync(process.execPath, [path.join(lic, 'check.mjs'), ...args], { env: { PATH: process.env.PATH ?? '', ...env } as NodeJS.ProcessEnv, encoding: 'utf8' as const, timeout: 10_000 })
+    spawnSync(process.execPath, [path.join(lic, 'check.mjs'), ...args], { env: { PATH: process.env.PATH ?? '', ...env } as unknown as NodeJS.ProcessEnv, encoding: 'utf8' as const, timeout: 10_000 })
 
   it('verify: exit 3 with the reason for an expired or missing licence', () => {
     const exp = run(['verify'], { LICENCE_FILE: path.join(lic, 'fixtures/expired.key'), BOX_ID: 'buildbox-test' })
