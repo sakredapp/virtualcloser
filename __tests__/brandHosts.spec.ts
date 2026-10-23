@@ -67,6 +67,30 @@ describe('brand from host', () => {
     expect(brandFromHost(PREVIEW_BRANCH).key).toBe('cxo')
   })
 
+  it('routes a named private server like an IP (selfhost)', () => {
+    vi.stubEnv('LOCAL_BRAND', 'cxo')
+    for (const h of ['ciao.acme.local', 'ciao.acme.local:443', 'suitecxo.lan', 'ciao.office.internal', 'ciao.home.arpa', 'suitecxo', 'CIAO.ACME.LOCAL']) {
+      expect(brandFromHost(h).key, h).toBe('cxo')
+      expect(isAnyGatewayHost(h), h).toBe(true)
+      expect(slugFromBrandedHost(h), h).toBeNull()
+    }
+    // A public name stays Virtual Closer in the cloud...
+    expect(brandFromHost('ciao.acme.com').key).toBe('virtualcloser')
+    expect(isAnyGatewayHost('ciao.acme.com')).toBe(false)
+    // ...but on the box itself any name is the box.
+    vi.stubEnv('SELFHOST', '1')
+    expect(brandFromHost('ciao.acme.com').key).toBe('cxo')
+    expect(isAnyGatewayHost('ciao.acme.com')).toBe(true)
+    // Our own domains never change, box or not.
+    expect(brandFromHost('acme.virtualcloser.com').key).toBe('virtualcloser')
+    expect(slugFromBrandedHost('mike.suitecxo.com')).toBe('mike')
+    expect(isAnyGatewayHost('mike.suitecxo.com')).toBe(false)
+  })
+
+  it('leaves a named box on Virtual Closer when LOCAL_BRAND is not set', () => {
+    expect(brandFromHost('ciao.acme.local').key).toBe('virtualcloser')
+  })
+
   it('treats a preview as a gateway with no tenant', () => {
     expect(isAnyGatewayHost(PREVIEW_BRANCH)).toBe(true)
     expect(isAnyGatewayHost(PREVIEW_HASH)).toBe(true)
