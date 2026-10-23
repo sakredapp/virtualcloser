@@ -164,8 +164,8 @@ export default function SizingCalculator({ bookHref }: { bookHref: string }) {
           </Link>
         </div>
         <p className="cxs-note">
-          {r.tier === 'rented' ? 'The server rent' : 'The hardware'} is quoted on the call. The private server isn&rsquo;t available
-          yet; we&rsquo;ll confirm the size and price on a call.
+          {r.tier === 'rented' ? 'The server rent' : 'The hardware'} is quoted on the call, and we confirm the size and price there.
+          Delivery dates are set once the build is scheduled.
         </p>
       </aside>
     </div>

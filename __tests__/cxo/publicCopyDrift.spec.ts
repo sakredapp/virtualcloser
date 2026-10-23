@@ -59,6 +59,7 @@ describe('sizing page', () => {
     const page = read('app/cxo/sizing/page.tsx')
     expect(page).not.toMatch(/cost(s)? to buy\s+and run|buy and run/i)
     expect(jsx('app/cxo/sizing/page.tsx')).not.toMatch(/coming|isn&rsquo;t available|not available/i)
+    expect(jsx('app/cxo/sizing/SizingCalculator.tsx')).not.toMatch(/coming|isn&rsquo;t available|not available/i)
   })
 })
 
