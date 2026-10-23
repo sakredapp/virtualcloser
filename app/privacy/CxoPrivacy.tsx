@@ -25,9 +25,8 @@ export function CxoPrivacy({ brand }: { brand: BrandConfig }) {
       <header className="hero">
         <h1>Privacy Policy</h1>
         <p className="sub">Effective {CXO_LEGAL_EFFECTIVE_DATE}</p>
-        <p className="nav">
+        <p className="nav nav-links">
           <Link href="/">← Home</Link>
-          <span>·</span>
           <Link href="/terms">Terms of Service</Link>
         </p>
       </header>

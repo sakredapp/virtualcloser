@@ -323,7 +323,7 @@ export default function CxoMarketingPage() {
               <p className="cxs-card-k">The cloud plan</p>
               <div className="cxs-price">
                 <b>${CXO_PRICE_PER_PERSON}</b>
-                <span>per person, per month</span>
+                <span>per person, per month, plus tax where applicable</span>
               </div>
               <p className="cxs-price-sub">Exec assistants are free.</p>
               <ul className="cxs-includes">
