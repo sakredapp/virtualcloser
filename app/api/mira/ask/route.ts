@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { after, NextRequest, NextResponse } from 'next/server'
 import { requireMember } from '@/lib/tenant'
 import type { AgentHistoryEntry } from '@/lib/agent/runAgent'
 import { runChatTurn } from '@/lib/agent/chatTurn'
@@ -13,6 +13,9 @@ import { listFolders } from '@/lib/agent/chatOrganize'
 import { clearPending } from '@/lib/agent/confirmGate'
 import type { AnswerCheckMeta } from '@/lib/agent/answerCheck'
 import { requireSignedMember } from '@/lib/agreementWall'
+import { loadChatMemory, maybeFold } from '@/lib/agent/chatMemoryStore'
+import { assistantNameFor } from '@/lib/assistantNameServer'
+import { ASSISTANT_NAME } from '@/lib/assistantName'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -44,26 +47,42 @@ export const maxDuration = 120
  * turn so the thread reads back the way it looked.
  */
 
-const HISTORY_WINDOW = 40
+/** What the panel shows when it opens. */
+const PANEL_WINDOW = 40
+/**
+ * What a turn reads: enough to always cover everything since the summary's
+ * cut-off (a fold runs once more than SUMMARY_AFTER = 30 are unsummarized).
+ */
+const TURN_WINDOW = 60
 
-type HistoryRow = { role: 'user' | 'assistant'; content: string; listed_tasks?: Array<{ id: string; content: string }> | null; created_at?: string }
+type HistoryRow = {
+  role: 'user' | 'assistant'
+  content: string
+  listed_tasks?: Array<{ id: string; content: string }> | null
+  created_at?: string
+  sources?: string | null
+}
 
-async function loadHistory(memberId: string, conversation: Pick<Conversation, 'id' | 'started_at'> | null, sessions: boolean): Promise<HistoryRow[]> {
+async function loadHistory(memberId: string, conversation: Pick<Conversation, 'id' | 'started_at'> | null, sessions: boolean, limit = PANEL_WINDOW, withSources = false): Promise<HistoryRow[]> {
   // Sessions on but no live conversation: the panel opens on a fresh chat.
   if (sessions && !conversation) return []
-  let q = supabase
-    .from('agent_history')
-    .select('role, content, listed_tasks, created_at')
-    .eq('member_id', memberId)
-  if (conversation) q = q.or(historyFilter(conversation))
-  const { data } = await q
-    .order('created_at', { ascending: false })
-    // A turn's question and answer can share a timestamp (older rows). Newest
-    // first, 'assistant' sorts before 'user', so after the reverse the
-    // question always comes before its answer.
-    .order('role', { ascending: true })
-    .limit(HISTORY_WINDOW)
-  return ((data ?? []) as HistoryRow[]).reverse()
+  const run = (cols: string) => {
+    let q = supabase.from('agent_history').select(cols).eq('member_id', memberId)
+    if (conversation) q = q.or(historyFilter(conversation))
+    return q
+      .order('created_at', { ascending: false })
+      // A turn's question and answer can share a timestamp (older rows). Newest
+      // first, 'assistant' sorts before 'user', so after the reverse the
+      // question always comes before its answer.
+      .order('role', { ascending: true })
+      .limit(limit)
+  }
+  const base = 'role, content, listed_tasks, created_at'
+  const first = await run(withSources ? `${base}, sources` : base)
+  let data: unknown = first.data
+  // Before supabase/cxo_ciao_chat_memory.sql: read without the digest column.
+  if (first.error && withSources) ({ data } = await run(base))
+  return ((data ?? []) as unknown as HistoryRow[]).reverse()
 }
 
 export async function GET(req: NextRequest) {
@@ -150,8 +169,8 @@ export async function POST(req: NextRequest) {
   const cur = await currentConversation(tenant.id, member.id)
   const conversationId = cur.conversation?.id || null
   const newConversation = cur.isNew
-  const persistTurn = async (userText: string, assistantText: string, listed?: Array<{ id: string; content: string }>, check?: AnswerCheckMeta) => {
-    await persistTurnRows(member.id, tenant.id, conversationId, userText, assistantText, listed, check)
+  const persistTurn = async (userText: string, assistantText: string, listed?: Array<{ id: string; content: string }>, check?: AnswerCheckMeta, sources?: string | null) => {
+    await persistTurnRows(member.id, tenant.id, conversationId, userText, assistantText, listed, check, sources)
     if (conversationId) await touchConversation(conversationId)
   }
 
@@ -171,14 +190,21 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const history: AgentHistoryEntry[] = (await loadHistory(member.id, cur.conversation, cur.available)).map((h) => ({
+    const [rows, memory] = await Promise.all([
+      loadHistory(member.id, cur.conversation, cur.available, TURN_WINDOW, true),
+      loadChatMemory(conversationId),
+    ])
+    const all: AgentHistoryEntry[] = rows.map((h) => ({
       role: h.role,
       content: h.content,
       listed_tasks: h.listed_tasks ?? undefined,
       at: h.created_at,
+      sources: h.sources ?? null,
     }))
+    // Turns the summary already covers are not sent again word for word.
+    const history = memory.open(all)
 
-    const turn = await runChatTurn({ tenant, member, text, history, channel: 'app', conversationId })
+    const turn = await runChatTurn({ tenant, member, text, history, channel: 'app', conversationId, conversationSummary: memory.summary })
     const result = turn.raw
     // Our admin asking while viewing as this member: billing counts it, adoption must not.
     if (result.error !== 'no_api_key' && result.error !== 'quota_exceeded' && (await isImpersonatedSession())) {
@@ -195,7 +221,31 @@ export async function POST(req: NextRequest) {
     if (turn.error) return NextResponse.json({ ok: true, reply: turn.reply, error: turn.error })
 
     const reply = turn.reply
-    await persistTurn(display || text, reply, turn.listedItems, result.answerCheck)
+    await persistTurn(display || text, reply, turn.listedItems, result.answerCheck, result.sourceDigest ?? null)
+    // A long chat: fold its older messages into the running summary after the
+    // reply is sent (lib/agent/chatMemoryStore), so the person never waits on it.
+    if (conversationId && memory.available) {
+      const asked = new Date().toISOString()
+      const fold = async () => {
+        try {
+          await maybeFold({
+            conversationId,
+            memory,
+            turns: [...all, { role: 'user', content: display || text, at: asked }, { role: 'assistant', content: reply, at: asked }],
+            assistantName: await assistantNameFor({ tenant, member }).catch(() => ASSISTANT_NAME),
+          })
+        } catch (e) {
+          console.warn('[mira/ask] fold failed', e instanceof Error ? e.message : e)
+        }
+      }
+      // after() needs a request scope; anywhere without one the fold is just
+      // skipped this turn (the next turn tries again) and the reply still goes out.
+      try {
+        after(fold)
+      } catch {
+        /* no request scope */
+      }
+    }
     if (turn.listedItems && turn.listedItems.length > 0) {
       await updateMember(member.id, {
         settings: {
@@ -224,11 +274,12 @@ async function persistTurnRows(
   assistantText: string,
   listed?: Array<{ id: string; content: string }>,
   check?: AnswerCheckMeta,
+  sources?: string | null,
 ): Promise<void> {
   // The answer is stamped 1 ms after the question so the pair never ties.
   const askedAt = Date.now()
   const conv = conversationId ? { conversation_id: conversationId } : {}
-  const rows = (withCheck: boolean) => [
+  const rows = (withCheck: boolean, withSources: boolean) => [
     { member_id: memberId, rep_id: repId, role: 'user', content: userText, created_at: new Date(askedAt).toISOString(), ...conv },
     {
       member_id: memberId,
@@ -240,14 +291,17 @@ async function persistTurnRows(
       ...conv,
       // The Ciao answer check on this reply (supabase/cxo_ciao_answer_check.sql).
       ...(withCheck && check ? { answer_check: check } : {}),
+      // What the answer read (supabase/cxo_ciao_chat_memory.sql).
+      ...(withSources && sources ? { sources } : {}),
     },
   ]
-  let { error } = await supabase.from('agent_history').insert(rows(true))
-  // Before the answer_check column exists: save the turn without it.
-  if (error && check && isMissingColumn(error)) ({ error } = await supabase.from('agent_history').insert(rows(false)))
+  let { error } = await supabase.from('agent_history').insert(rows(true, true))
+  // Before a migration added its column: drop the digest first, then the check.
+  if (error && sources && isMissingColumn(error)) ({ error } = await supabase.from('agent_history').insert(rows(true, false)))
+  if (error && check && isMissingColumn(error)) ({ error } = await supabase.from('agent_history').insert(rows(false, false)))
   if (error) console.error('[mira/ask] history persist failed', error.message)
 }
 
 function isMissingColumn(e: { code?: string; message?: string }): boolean {
-  return e.code === '42703' || e.code === 'PGRST204' || /answer_check/.test(e.message ?? '')
+  return e.code === '42703' || e.code === 'PGRST204' || /answer_check|sources/.test(e.message ?? '')
 }

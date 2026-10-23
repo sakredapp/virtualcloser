@@ -35,6 +35,7 @@ import { googleStateFor, renderGoogleState } from './googleState'
 import { actionSucceeded, claimsAction, UNBACKED_CLAIM_FLAG, UNBACKED_CLAIM_NOTE } from './actionClaims'
 import { answerCheckEnabled, checkAnswer, collectToolContext, type AnswerCheckMeta } from './answerCheck'
 import { claimsPastConversation, conversationStateLine, NEW_CHAT_FALLBACK, PAST_TALK_RETRY_NOTE } from './conversationState'
+import { attachDigests, fitHistory, sourceDigest, stripDigest, summaryBlock, type SourceCall } from './chatMemory'
 import { cxoEmployeeOps, inboxAllowed } from '@/lib/cxoFeatures'
 import {
   TOOL_HANDLERS,
@@ -76,6 +77,11 @@ export type RunAgentInput = {
   text: string
   /** Recent conversation context — entries may include listed_tasks metadata (stripped before the AI call). */
   history?: Array<AgentHistoryEntry>
+  /**
+   * The running summary of this chat's older messages (ciao_conversations.summary,
+   * lib/agent/chatMemory). Sent as its own block so a long chat keeps its start.
+   */
+  conversationSummary?: string | null
   /** Eval harnesses set this so an "I can't" reply is not logged as a product capability gap. */
   skipGapDetect?: boolean
   /** 'slack': sends and changes are held for a yes in the app (lib/ops/agentGate). */
@@ -124,6 +130,11 @@ export type RunAgentResult = {
    * (not Suite CXO, an error, a choice).
    */
   answerCheck?: AnswerCheckMeta
+  /**
+   * What this answer read (lib/agent/chatMemory sourceDigest), saved on the
+   * answer row so a follow-up can reuse it instead of fetching again.
+   */
+  sourceDigest?: string | null
 }
 
 /** History entry stored in member.settings.agent_history. */
@@ -134,6 +145,8 @@ export type AgentHistoryEntry = {
   listed_tasks?: Array<{ id: string; content: string }>
   /** When the turn was sent (ISO). Turns from another day are labelled as such. */
   at?: string
+  /** Answers: the digest of what it read (agent_history.sources). */
+  sources?: string | null
 }
 
 // ---------------------------------------------------------------------------
@@ -742,16 +755,18 @@ async function runAgentInner(input: RunAgentInput, held: string[], proposals: Pe
   // Slack: plain text replies; sends and changes wait for a yes in the app.
   if (ctx.channel === 'slack') systemPrompt = `${systemPrompt}\n\n${SLACK_CHANNEL_NOTE}`
 
-  // Build initial conversation — up to 38 entries (19 exchanges) from the
-  // DB-backed agent_history table. Large window so the agent can resolve
-  // back-references and maintain context across a full working session.
-  // GLM has a large context window; 40 short chat turns is ~4k tokens.
+  // Build initial conversation from the DB-backed agent_history table: the
+  // newest turns that fit the token budget (lib/agent/chatMemory, at most 38),
+  // the newest answers carrying a digest of what they read. Older messages
+  // live on in the running summary block below.
   const messages: AI.MessageParam[] = []
-  const earlierTurns = input.history ? input.history.slice(-38).length : 0
-  if (input.history && input.history.length > 0) {
+  const kept = input.history && input.history.length > 0 ? attachDigests(fitHistory(input.history)) : []
+  const earlierTurns = kept.length
+  const summaryText = summaryBlock(input.conversationSummary)
+  if (kept.length > 0) {
     // Every earlier turn carries when it was sent, so an old answer's
     // numbers or status are never read as now.
-    messages.push(...stampHistory(input.history.slice(-38), tz, todayIso))
+    messages.push(...stampHistory(kept, tz, todayIso))
   }
   messages.push({ role: 'user', content: input.text })
   // Where this run starts: the answer check reads the tool results from here on.
@@ -770,6 +785,8 @@ async function runAgentInner(input: RunAgentInput, held: string[], proposals: Pe
   // The model that actually answered (GLM on OpenRouter, or the fallback).
   let modelUsed: string | null = null
   const toolsUsed: string[] = []
+  /** Every call this answer made, for the source digest saved with it. */
+  const sourceCalls: SourceCall[] = []
   // Gap 2 honesty guard (lib/agent/actionClaims): did any action tool actually
   // do (or queue) something this turn, and have we already asked for a rewrite?
   let actionDone = false
@@ -801,7 +818,9 @@ async function runAgentInner(input: RunAgentInput, held: string[], proposals: Pe
     { type: 'text', text: nowLine(tz) },
     // Uncached too: says how many earlier turns this chat has, so a new chat
     // is never answered with a conversation that did not happen (Ciao QA 2026-10-18).
-    { type: 'text', text: conversationStateLine(earlierTurns) },
+    { type: 'text', text: conversationStateLine(earlierTurns, !!summaryText) },
+    // The running summary of older messages (uncached: it changes as the chat grows).
+    ...(summaryText ? [{ type: 'text' as const, text: summaryText }] : []),
   ]
 
   for (let turn = 0; turn < MAX_TURNS; turn++) {
@@ -858,7 +877,7 @@ async function runAgentInner(input: RunAgentInput, held: string[], proposals: Pe
         .map((b) => b.text)
         .join('\n')
         .trim()
-      replyText = stripHistoryStamps(replyText)
+      replyText = stripDigest(stripHistoryStamps(replyText))
       // Never claim an action no tool did. One corrective turn: the model
       // either calls the tool or rewrites; a second claim gets a plain flag.
       const backed = actionDone || collectedIntents.length > 0
@@ -906,6 +925,7 @@ async function runAgentInner(input: RunAgentInput, held: string[], proposals: Pe
         }
       }
       await recordUsage(ctx, totalInput, totalOutput, toolCalls, errors, modelUsed)
+      const digest = sourceDigest(sourceCalls)
       return {
         replyText: replyText || (collectedChoice ? '' : 'Done.'),
         intentsToExecute: collectedIntents,
@@ -913,6 +933,7 @@ async function runAgentInner(input: RunAgentInput, held: string[], proposals: Pe
         listedItems: collectedListedItems,
         usage: usage(),
         ...(answerCheck ? { answerCheck } : {}),
+        ...(digest ? { sourceDigest: digest } : {}),
       }
     }
 
@@ -976,6 +997,7 @@ async function runAgentInner(input: RunAgentInput, held: string[], proposals: Pe
           tool_use_id: tu.id,
           content: result.text,
         })
+        sourceCalls.push({ name: tu.name, input: args, result: result.text })
         if (actionSucceeded(tu.name, (tu.input ?? {}) as Record<string, unknown>, result.text)) actionDone = true
         if (result.intents && result.intents.length > 0) {
           collectedIntents.push(...result.intents)

@@ -38,6 +38,8 @@ export async function runChatTurn(input: {
   member: Member
   text: string
   history: AgentHistoryEntry[]
+  /** The running summary of this chat's older messages (lib/agent/chatMemory). */
+  conversationSummary?: string | null
   channel?: AgentChannel
   /** The chat this turn belongs to (app): a pending proposal only counts in the conversation it was made in. */
   conversationId?: string | null
@@ -68,7 +70,14 @@ export async function runChatTurn(input: {
     if (decision === 'cancel') return plain(NOT_DONE_LINE)
   }
 
-  const result = await (input.run ?? runAgent)({ tenant, caller: member, text, history, channel })
+  const result = await (input.run ?? runAgent)({
+    tenant,
+    caller: member,
+    text,
+    history,
+    channel,
+    ...(input.conversationSummary ? { conversationSummary: input.conversationSummary } : {}),
+  })
   const held = result.heldApprovals ?? []
 
   // Confirm before write: the dispatcher's own writes (book, move, cancel, email, hand off) wait for the yes too.
