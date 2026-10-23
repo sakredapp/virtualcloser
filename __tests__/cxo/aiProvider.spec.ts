@@ -207,7 +207,7 @@ describe('local model rail (private server)', () => {
     box()
     const { routeFor, openRouterConfigured } = await import('@/lib/aiProvider')
     expect(openRouterConfigured()).toBe(true)
-    expect(routeFor({ model: 'claude-sonnet-4-5', max_tokens: 10, messages: [{ role: 'user', content: 'hi' }] })).toEqual({ provider: 'local', model: 'local:qwen3:32b', reason: 'text' })
+    expect(routeFor({ model: 'claude-sonnet-4-5', messages: [{ role: 'user', content: 'hi' }] })).toEqual({ provider: 'local', model: 'local:qwen3:32b', reason: 'text' })
     const { hasAIKey } = await import('@/lib/ai')
     expect(hasAIKey()).toBe(true)
   })
@@ -223,17 +223,17 @@ describe('local model rail (private server)', () => {
   it('fails clearly without a model name, and refuses pictures without a vision model', async () => {
     box({ LOCAL_LLM_MODEL: '' })
     const { routeFor, LocalModelError } = await import('@/lib/aiProvider')
-    expect(() => routeFor({ max_tokens: 10, messages: [{ role: 'user', content: 'hi' }] })).toThrow(LocalModelError)
+    expect(() => routeFor({ messages: [{ role: 'user', content: 'hi' }] })).toThrow(LocalModelError)
     process.env.LOCAL_LLM_MODEL = 'qwen3:32b'
-    expect(() => routeFor({ max_tokens: 10, messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'AA==' } }] }] })).toThrow(/LOCAL_LLM_VISION_MODEL/)
+    expect(() => routeFor({ messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'AA==' } }] }] })).toThrow(/LOCAL_LLM_VISION_MODEL/)
     process.env.LOCAL_LLM_VISION_MODEL = 'qwen2.5vl:7b'
-    expect(routeFor({ max_tokens: 10, messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'AA==' } }] }] }).model).toBe('local:qwen2.5vl:7b')
+    expect(routeFor({ messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'AA==' } }] }] }).model).toBe('local:qwen2.5vl:7b')
   })
 
   it('keeps the no-Claude / no-Haiku ban for local models too', async () => {
     box({ LOCAL_LLM_MODEL: 'claude-haiku-distill' })
     const { routeFor } = await import('@/lib/aiProvider')
-    expect(() => routeFor({ max_tokens: 10, messages: [{ role: 'user', content: 'hi' }] })).toThrow(/haiku|claude/i)
+    expect(() => routeFor({ messages: [{ role: 'user', content: 'hi' }] })).toThrow(/haiku|claude/i)
   })
 
   it('calls the local server with a plain OpenAI body, no OpenRouter fields, no key unless set, and costs $0', async () => {
