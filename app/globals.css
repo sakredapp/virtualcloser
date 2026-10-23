@@ -3466,6 +3466,44 @@ a.cx-int-quiet { text-decoration: none; }
   transition: background 0.15s ease;
 }
 .cx-login-submit:hover { background: var(--cx-accent-hover); }
+/* Book a call: time picker on the thank-you card (app/cxo/request-access/SlotPicker.tsx).
+   References: Apollo booking page (day, then a time list, then Confirm) and
+   HoneyBook (time pills); the booked state copies Calendly's "You are scheduled". */
+.cx-slots { display: grid; gap: 14px; }
+.cx-slots-label { margin: 0; font-size: 0.82rem; color: var(--cx-muted); }
+.cx-slot-days { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+.cx-slot-days::-webkit-scrollbar { display: none; }
+.cx-slot-day, .cx-slot-time {
+  border: 1px solid var(--cx-line);
+  background: var(--cx-surface);
+  color: var(--cx-ink);
+  font: 500 0.9rem var(--cx-sans);
+  border-radius: 10px;
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.cx-slot-day { flex: 0 0 auto; padding: 8px 12px; white-space: nowrap; }
+.cx-slot-times { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.cx-slot-time { height: 40px; padding: 0 6px; }
+.cx-slot-day:hover, .cx-slot-time:hover { border-color: var(--cx-line-strong); }
+.cx-slot-day[aria-pressed="true"], .cx-slot-time[aria-pressed="true"] {
+  background: var(--cx-accent);
+  color: var(--cx-on-accent);
+  border-color: var(--cx-accent);
+}
+.cx-slot-day:focus-visible, .cx-slot-time:focus-visible { outline: 2px solid var(--cx-line-strong); outline-offset: 2px; }
+.cx-slots .cx-login-submit:disabled { opacity: 0.45; cursor: not-allowed; }
+.cx-booked {
+  display: grid;
+  gap: 4px;
+  padding: 14px 16px;
+  border: 1px solid var(--cx-line);
+  border-radius: 12px;
+  background: var(--cx-tint);
+  font-variant-numeric: tabular-nums;
+}
+.cx-booked strong { font-size: 1rem; }
+.cx-booked span { font-size: 0.86rem; color: var(--cx-muted); }
 .cx-login-submit:focus-visible {
   outline: none;
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--cx-silver) 45%, transparent);

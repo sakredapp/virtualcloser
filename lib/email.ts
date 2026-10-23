@@ -999,3 +999,77 @@ export async function sendFeatureRequest(input: FeatureRequestEmailInput): Promi
   return { ok: res.ok, error: res.error, to }
 }
 
+
+// ── Suite CXO "Book a call" (request-access) ────────────────────────────────
+// The prospect's emails are Suite CXO emails from suitecxo.com (brand 'cxo').
+// The owner notice goes to the developer inbox, never the Sakred one.
+
+export const CXO_REQUEST_NOTICE_TO = 'jace@virtualcloser.com'
+
+/** To the prospect, right after they ask for a call: the link to pick a time. */
+export function cxoRequestReceivedEmail(input: { name: string; pickUrl: string }) {
+  const t = tokens('cxo')
+  const first = input.name.split(' ')[0] || input.name
+  const body = `
+    <p style="margin:0 0 14px;">Hi ${escape(first)},</p>
+    <p style="margin:0 0 14px;">Thanks for asking about ${escape(t.name)}. The next step is a 30 minute call where we look at your company and show you which option fits.</p>
+    <p style="margin:0 0 22px;">Pick a time that works for you (Monday to Friday, 9 to 5 Eastern):</p>
+    <p style="margin:0 0 22px;"><a href="${escape(input.pickUrl)}" style="display:inline-block;background:${t.ink};color:${t.paper};padding:12px 20px;border-radius:10px;text-decoration:none;font-weight:700;">Pick a time</a></p>
+    <p style="margin:0;color:${t.muted};font-size:13px;">If none of the times work, reply to this email and we will find one.</p>
+  `
+  return {
+    subject: `Book your ${t.name} call`,
+    html: shell({ title: 'Pick a time for your call', preheader: 'Choose a 30 minute call time.', body, brand: 'cxo', footer: `You're receiving this because you asked ${escape(t.name)} for a call.` }),
+    text: `Hi ${first},\n\nThanks for asking about ${t.name}. Pick a time for a 30 minute call (Monday to Friday, 9 to 5 Eastern):\n${input.pickUrl}\n\nIf none of the times work, reply to this email.\n\n— ${t.name}`,
+  }
+}
+
+/** To the prospect, once a time is booked. The calendar invite comes separately. */
+export function cxoCallBookedEmail(input: { name: string; whenLabel: string }) {
+  const t = tokens('cxo')
+  const first = input.name.split(' ')[0] || input.name
+  const body = `
+    <p style="margin:0 0 14px;">Hi ${escape(first)},</p>
+    <p style="margin:0 0 14px;">Your ${escape(t.name)} call is booked for <strong>${escape(input.whenLabel)}</strong> (30 minutes).</p>
+    <p style="margin:0 0 14px;">A calendar invite with the call details is on its way to this address.</p>
+    <p style="margin:0;color:${t.muted};font-size:13px;">Need a different time? Reply to this email and we will move it.</p>
+  `
+  return {
+    subject: `Your ${t.name} call: ${input.whenLabel}`,
+    html: shell({ title: 'Your call is booked', preheader: `${input.whenLabel}, 30 minutes.`, body, brand: 'cxo', footer: `You're receiving this because you booked a call with ${escape(t.name)}.` }),
+    text: `Hi ${first},\n\nYour ${t.name} call is booked for ${input.whenLabel} (30 minutes). A calendar invite is on its way.\n\nNeed a different time? Reply to this email.\n\n— ${t.name}`,
+  }
+}
+
+/** To the owner: a new request, or a booked call. Plain facts, no styling needed. */
+export function cxoRequestNoticeEmail(input: {
+  kind: 'request' | 'booked'
+  name: string
+  email: string
+  company?: string | null
+  role?: string | null
+  interest?: string | null
+  notes?: string | null
+  whenLabel?: string | null
+  calendarEvent?: boolean | null
+  prospectId?: string | null
+}) {
+  const lines = [
+    `Name: ${input.name}`,
+    `Email: ${input.email}`,
+    input.company ? `Company: ${input.company}` : null,
+    input.role ? `Role: ${input.role}` : null,
+    input.interest ? `Interested in: ${input.interest}` : null,
+    input.whenLabel ? `Call: ${input.whenLabel}` : null,
+    input.kind === 'booked' ? `Google Calendar event: ${input.calendarEvent ? 'created on your calendar' : 'NOT created, add it by hand'}` : null,
+    input.notes ? `\nTheir note:\n${input.notes}` : null,
+    input.prospectId ? `\nSuite CXO prospect id: ${input.prospectId}` : null,
+  ].filter(Boolean) as string[]
+  const subject =
+    input.kind === 'booked'
+      ? `Suite CXO call booked: ${input.company || input.name}, ${input.whenLabel ?? ''}`.trim()
+      : `Suite CXO call request: ${input.company || input.name}`
+  const text = `${input.kind === 'booked' ? 'A Suite CXO prospect booked a call.' : 'Someone asked for a Suite CXO call on suitecxo.com. They were emailed a link to pick a time.'}\n\n${lines.join('\n')}`
+  const html = `<div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:640px;font-size:14px;line-height:1.55;"><pre style="white-space:pre-wrap;font-family:inherit;margin:0;">${escape(text)}</pre></div>`
+  return { subject: subject.slice(0, 180), html, text }
+}

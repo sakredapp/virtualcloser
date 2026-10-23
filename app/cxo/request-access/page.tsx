@@ -8,6 +8,16 @@ import CxAuthCard from '@/app/components/cxo/CxAuthCard'
 import { cxoPageMeta } from '@/lib/seo'
 import { safeProspectId } from '@/lib/whopPixel'
 import { LeadSent, RememberLeadContact } from './LeadPixel'
+import SlotPicker from './SlotPicker'
+import { bookCxoSlot, easternLabel, fetchCxoSlots } from '@/lib/cxoBooking'
+import {
+  CXO_REQUEST_NOTICE_TO,
+  cxoCallBookedEmail,
+  cxoRequestNoticeEmail,
+  cxoRequestReceivedEmail,
+  sendEmail,
+} from '@/lib/email'
+import { alertOperator } from '@/lib/alerts'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,9 +35,34 @@ const INTERESTS = [
   { id: 'private', label: 'Private build (on a server you own)' },
 ] as const
 
+/** The picker link in the prospect's email always opens on the Suite CXO site. */
+const PICK_ORIGIN = 'https://www.suitecxo.com'
+
+type Booking = { start: string; end: string | null; event_created: boolean; booked_at: string }
+type RequestRow = { id: string; name: string | null; email: string | null; company: string | null; notes: string | null; payload: Record<string, unknown> | null }
+
+async function loadRequest(leadId: string): Promise<RequestRow | null> {
+  const { data } = await supabase
+    .from('prospects')
+    .select('id, name, email, company, notes, payload')
+    .eq('id', leadId)
+    .eq('source', 'cxo_request_access')
+    .maybeSingle()
+  return (data as RequestRow | null) ?? null
+}
+
+function bookingOf(row: RequestRow | null): Booking | null {
+  const b = row?.payload?.booking as Booking | undefined
+  return b && typeof b.start === 'string' ? b : null
+}
+
 /**
- * Suite CXO "Request access" (the login card's link). Saves the request as a
- * prospect for the team to follow up; it sends no email and books nothing.
+ * Suite CXO "Book a call" (the login card's "Request access" link and the
+ * home page's call buttons). On send it saves the request as a prospect,
+ * emails the prospect a Suite CXO link to pick a time and tells the owner
+ * (jace@virtualcloser.com). The thank-you card shows the owner's open times
+ * (Monday to Friday, 9 to 5 Eastern) and books the one picked on the owner's
+ * Google calendar through lib/cxoBooking.ts.
  * Lives under /cxo so it is public on every CXO host, including a tenant's
  * own login host (where /demo is the Virtual Closer demo).
  */
@@ -67,17 +102,120 @@ export default async function CxoRequestAccessPage({ searchParams }: { searchPar
     }
     // The prospect id is the Whop Pixel lead's event_id (LeadPixel.tsx). No name or email in the URL.
     const leadId = safeProspectId((saved as { id?: unknown } | null)?.id)
+    if (leadId) {
+      const interestLabel = INTERESTS.find((i) => i.id === interest)?.label ?? null
+      const toProspect = cxoRequestReceivedEmail({ name, pickUrl: `${PICK_ORIGIN}/cxo/request-access?sent=1&lead=${leadId}` })
+      const notice = cxoRequestNoticeEmail({ kind: 'request', name, email, company, role, interest: interestLabel, notes, prospectId: leadId })
+      const [a, b] = await Promise.all([
+        sendEmail({ to: email, ...toProspect, brand: 'cxo' }),
+        sendEmail({ to: CXO_REQUEST_NOTICE_TO, ...notice, replyTo: email, brand: 'cxo' }),
+      ])
+      if (!a.ok || !b.ok) {
+        await alertOperator({
+          key: `cxo_request_email:${leadId}`,
+          title: 'Suite CXO call request email did not send',
+          body: `A Suite CXO call request was saved (prospect ${leadId}) but an email failed. Prospect email: ${a.ok ? 'sent' : a.error}. Owner notice: ${b.ok ? 'sent' : b.error}.`,
+        })
+      }
+    }
     redirect(leadId ? `/cxo/request-access?sent=1&lead=${leadId}` : '/cxo/request-access?sent=1')
+  }
+
+  async function bookCall(fd: FormData) {
+    'use server'
+    const leadId = safeProspectId(String(fd.get('lead') ?? ''))
+    const start = String(fd.get('start') ?? '').trim().slice(0, 64)
+    if (!leadId) redirect('/cxo/request-access?sent=1')
+    const back = `/cxo/request-access?sent=1&lead=${leadId}`
+    const row = await loadRequest(leadId)
+    if (!row?.email || !row.name) redirect(back)
+    if (bookingOf(row)) redirect(back)
+    // Only a time the calendar is offering right now; its offer_ref goes back with it.
+    const slots = await fetchCxoSlots()
+    const slot = slots?.find((s) => s.start === start)
+    if (!slot) redirect(`${back}&error=taken`)
+    const res = await bookCxoSlot({ start: slot.start, offerRef: slot.offer_ref, name: row.name, email: row.email })
+    if (!res.ok) {
+      if (!res.taken) {
+        await alertOperator({
+          key: `cxo_book_failed:${leadId}`,
+          title: 'Suite CXO call booking failed',
+          body: `A Suite CXO prospect (${leadId}) picked ${easternLabel(slot.start)} and the booking API refused: ${res.error}. They were asked to pick another time; reach out if they do not.`,
+        })
+      }
+      redirect(`${back}&error=${res.taken ? 'taken' : 'book'}`)
+    }
+    const booking: Booking = { start: res.start, end: res.end, event_created: res.eventCreated, booked_at: new Date().toISOString() }
+    const { error } = await supabase
+      .from('prospects')
+      .update({ payload: { ...(row.payload ?? {}), booking, vc_prospect_id: res.prospectId }, status: 'booked', pipeline_stage: 'call_booked' })
+      .eq('id', leadId)
+    if (error) console.error('[cxo request-access] booking save failed', error.message)
+    const whenLabel = easternLabel(res.start)
+    const [a, b] = await Promise.all([
+      sendEmail({ to: row.email, ...cxoCallBookedEmail({ name: row.name, whenLabel }), brand: 'cxo' }),
+      sendEmail({
+        to: CXO_REQUEST_NOTICE_TO,
+        ...cxoRequestNoticeEmail({ kind: 'booked', name: row.name, email: row.email, company: row.company, notes: row.notes, whenLabel, calendarEvent: res.eventCreated, prospectId: leadId }),
+        replyTo: row.email,
+        brand: 'cxo',
+      }),
+    ])
+    if (!a.ok || !b.ok || !res.eventCreated) {
+      await alertOperator({
+        key: `cxo_booked_followup:${leadId}`,
+        title: 'Suite CXO call booked, check the follow-up',
+        body: `Prospect ${leadId} booked ${whenLabel}. Calendar event: ${res.eventCreated ? 'created' : 'NOT created'}. Prospect confirmation: ${a.ok ? 'sent' : a.error}. Owner notice: ${b.ok ? 'sent' : b.error}.`,
+      })
+    }
+    redirect(back)
   }
 
   if (params.sent === '1') {
     const leadId = safeProspectId(params.lead)
+    const row = leadId ? await loadRequest(leadId) : null
+    const booked = bookingOf(row)
+    if (booked) {
+      return (
+        <CxAuthCard title="Your call is booked" sub="A calendar invite and a confirmation are on their way to your email.">
+          <div className="cx-booked">
+            <strong>{easternLabel(booked.start)}</strong>
+            <span>30 minute call with Suite CXO</span>
+          </div>
+          <p className="cx-login-links">
+            <span>Need another time? Reply to the confirmation email.</span>
+          </p>
+          <Link href="/cxo" className="cx-login-submit">
+            Back to Suite CXO
+          </Link>
+        </CxAuthCard>
+      )
+    }
+    const slots = row ? await fetchCxoSlots() : null
+    const bookErr =
+      params.error === 'taken'
+        ? 'That time was just taken. Please pick another.'
+        : params.error === 'book'
+          ? 'That did not book. Please pick another time.'
+          : null
     return (
-      <CxAuthCard title="Request received" sub="Thank you. Our team will reach out to book your call.">
+      <CxAuthCard
+        title="Request received"
+        sub={row && slots?.length ? 'Thank you. Pick a time for your call.' : 'Thank you. We emailed you a link to book your call, and our team will reach out.'}
+      >
         {leadId && <LeadSent prospectId={leadId} />}
-        <Link href="/login" className="cx-login-submit">
-          Back to sign in
-        </Link>
+        {bookErr && (
+          <p className="cx-login-error" role="alert">
+            {bookErr}
+          </p>
+        )}
+        {row && leadId && slots && slots.length > 0 ? (
+          <SlotPicker slots={slots.map(({ start, dayKey, dayLabel, timeLabel }) => ({ start, dayKey, dayLabel, timeLabel }))} leadId={leadId} action={bookCall} />
+        ) : (
+          <Link href="/cxo" className="cx-login-submit">
+            Back to Suite CXO
+          </Link>
+        )}
       </CxAuthCard>
     )
   }

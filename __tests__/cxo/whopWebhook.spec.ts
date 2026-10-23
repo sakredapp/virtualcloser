@@ -22,6 +22,9 @@ const audit = vi.fn(async () => {})
 vi.mock('@/lib/billing/auditLog', () => ({ audit }))
 const provisionFromOnboardingPayment = vi.fn(async () => {})
 vi.mock('@/lib/billing/provisionOnboarding', () => ({ provisionFromOnboardingPayment }))
+const ensurePublicBuyerRep = vi.fn(async (..._a: unknown[]) => ({ ok: true as const, repId: 'rep_public', created: true, welcome: 'sent' }))
+const alertUnmatched = vi.fn(async (..._a: unknown[]) => {})
+vi.mock('@/lib/billing/publicBuyer', () => ({ ensurePublicBuyerRep, alertUnmatched }))
 
 import { verifyWhopWebhook } from '@/lib/billing/whop'
 import { cxoMetadata, isCxoObject } from '@/lib/billing/whopEvents'
@@ -69,6 +72,8 @@ describe('POST /api/webhooks/whop', () => {
     for (const k of Object.keys(rows)) delete rows[k]
     audit.mockClear()
     provisionFromOnboardingPayment.mockClear()
+    ensurePublicBuyerRep.mockClear()
+    alertUnmatched.mockClear()
   })
   afterEach(() => {
     if (ENV === undefined) delete process.env.WHOP_WEBHOOK_SECRET
@@ -113,5 +118,29 @@ describe('POST /api/webhooks/whop', () => {
     const res = await send({ type: 'membership.deactivated', data: { id: 'mem_1', metadata: { kind: 'cxo_subscription', rep_id: 'rep_acme' } } })
     expect((await res.json()).outcome).toBe('comped_unchanged')
     expect(updates).toEqual([])
+  })
+  it('a public buyer with no account gets one, then the seat is marked active', async () => {
+    const res = await send({ type: 'payment.succeeded', data: { id: 'pay_pub', total: 60, user: { email: 'jane@acme.com' }, metadata: { app: 'suitecxo' }, membership: { id: 'mem_pub' } } })
+    expect((await res.json()).outcome).toBe('subscription_paid')
+    expect(ensurePublicBuyerRep).toHaveBeenCalledTimes(1)
+    expect(updates[0]).toMatchObject({ table: 'reps', patch: { billing_status: 'active', whop_membership_id: 'mem_pub' } })
+  })
+
+  it('a public membership that cannot be settled is recorded with the reason, never silently', async () => {
+    ensurePublicBuyerRep.mockResolvedValueOnce({ ok: false, reason: 'no_email' } as never)
+    const res = await send({ type: 'membership.activated', data: { id: 'mem_x', metadata: { app: 'suitecxo' } } })
+    expect((await res.json()).outcome).toBe('no_rep_no_email')
+  })
+
+  it('a failed payment or a cancel with no account alerts the owner', async () => {
+    await send({ type: 'payment.failed', data: { id: 'pay_f', metadata: { app: 'suitecxo' } } })
+    await send({ type: 'membership.deactivated', data: { id: 'mem_f', metadata: { app: 'suitecxo' } } })
+    expect(alertUnmatched).toHaveBeenCalledTimes(2)
+  })
+
+  it('a provisioning crash answers 500 so Whop retries', async () => {
+    ensurePublicBuyerRep.mockRejectedValueOnce(new Error('boom'))
+    const res = await send({ type: 'payment.succeeded', data: { id: 'pay_c', metadata: { app: 'suitecxo' } } })
+    expect(res.status).toBe(500)
   })
 })
