@@ -5,6 +5,7 @@
 #   (default)   app, worker, db, migrate, postgrest, caddy, ofelia, backup, health
 #   local-llm   + ollama (a GPU box; then LLM_BASE_URL=http://ollama:11434/v1)
 #   remote      + tailscale (our outbound tunnel; needs TS_AUTHKEY in .env)
+#   mailtest    + mailpit (a local mail catcher; golden-test.sh only: SMTP_HOST=mailpit SMTP_PORT=1025)
 #
 # Every service has memory/CPU limits so the box (or a build box sharing the
 # machine) keeps headroom. Only Caddy (and the health agent, on loopback)
@@ -14,6 +15,8 @@ name: suitecxo
 x-app-env: &app-env
   NODE_ENV: production
   LOCAL_BRAND: cxo
+  SELFHOST: "1"
+  BOX_ID: ${BOX_ID:-box}
   ROOT_DOMAIN: ${ROOT_DOMAIN:-localhost}
   # The app reads the Supabase URL/key it always has; on the box they point at
   # Caddy's internal :8000 (PostgREST behind /rest/v1) and the local service JWT.
@@ -29,11 +32,15 @@ x-app-env: &app-env
   OPENROUTER_CHAT_URL: ${LLM_BASE_URL:-https://openrouter.ai/api/v1}/chat/completions
   OPENROUTER_API_KEY: ${LLM_API_KEY:-}
   PLATFORM_ASSISTANT_MODEL_ID: ${LLM_MODEL_ID:-}
-  # Email out through the client's own mailbox (opt-in; connector still to wire).
+  # Email out through the client's own mailbox (lib/emailSmtp.ts). Blank
+  # SMTP_HOST = the box sends no mail. Test: POST /api/cron/selfhost-mail-test.
   SMTP_HOST: ${SMTP_HOST:-}
   SMTP_PORT: ${SMTP_PORT:-587}
+  SMTP_SECURE: ${SMTP_SECURE:-false}
   SMTP_USER: ${SMTP_USER:-}
   SMTP_PASS: ${SMTP_PASS:-}
+  SMTP_FROM: ${SMTP_FROM:-}
+  SMTP_REPLY_TO: ${SMTP_REPLY_TO:-}
   GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
   GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
   # Cloud-only pieces stay off on a box: Whop billing, Resend/SES, Fathom,
@@ -213,6 +220,16 @@ services:
     #   resources:
     #     reservations:
     #       devices: [{ driver: nvidia, count: all, capabilities: [gpu] }]
+
+  # Test-only mail catcher: golden-test.sh points SMTP at it and reads the
+  # message back over its API. Never published; never on a client box.
+  mailpit:
+    profiles: ["mailtest"]
+    image: axllent/mailpit:v1.27
+    restart: "no"
+    deploy:
+      resources:
+        limits: { cpus: "0.25", memory: 128m }
 
   tailscale:
     profiles: ["remote"]

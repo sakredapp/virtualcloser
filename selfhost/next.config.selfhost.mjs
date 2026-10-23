@@ -9,5 +9,8 @@ const nextConfig = {
   // keep the build inside the box's memory budget.
   typescript: { ignoreBuildErrors: true },
   eslint: { ignoreDuringBuilds: true },
+  // lib/emailSmtp.ts loads nodemailer at runtime (webpackIgnore), so make sure
+  // the standalone output ships it.
+  outputFileTracingIncludes: { '/**': ['./node_modules/nodemailer/**'] },
 }
 export default nextConfig
