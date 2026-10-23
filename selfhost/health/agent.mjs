@@ -3,7 +3,9 @@
 // Every HEALTH_INTERVAL_S seconds it checks the box and keeps the latest
 // result. GET /health on port 8099 returns it (200 when every check passes,
 // 503 when one fails). When HEALTH_REPORT_URL is set it also POSTs the result
-// there with HEALTH_REPORT_TOKEN as a bearer (our ops endpoint; off by default).
+// there (our ops endpoint, app/api/ops/private-server/report), signed with the
+// box's licence as the bearer (LICENCE_FILE; HEALTH_REPORT_TOKEN overrides it).
+// The outcome of the last post shows as `report` in /health.
 // The report carries box status only: no client data, no secrets.
 import http from 'node:http'
 import fs from 'node:fs/promises'
@@ -17,6 +19,7 @@ const SERVICE_KEY = env.SUPABASE_SERVICE_ROLE_KEY || ''
 const DISK_PATHS = (env.HEALTH_DISK_PATHS || '/').split(',')
 const DISK_MIN_FREE_PCT = Number(env.HEALTH_DISK_MIN_FREE_PCT || 15)
 const STALE_MIN = Number(env.WORKER_STALE_MINUTES || 10)
+const LICENCE_FILE = env.LICENCE_FILE || '/licence/licence.key'
 
 async function timed(name, fn) {
   const t = Date.now()
@@ -59,24 +62,44 @@ async function runChecks() {
 }
 
 let latest = { box: BOX_ID, at: null, ok: false, checks: [], note: 'first check pending' }
+let report = env.HEALTH_REPORT_URL ? { ok: false, note: 'first report pending' } : { ok: false, note: 'off (HEALTH_REPORT_URL blank)' }
+
+async function reportToken() {
+  if (env.HEALTH_REPORT_TOKEN) return env.HEALTH_REPORT_TOKEN
+  try {
+    return (await fs.readFile(LICENCE_FILE, 'utf8')).trim()
+  } catch {
+    return ''
+  }
+}
+
+async function send(result) {
+  const at = new Date().toISOString()
+  try {
+    const r = await fetch(env.HEALTH_REPORT_URL, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${await reportToken()}` },
+      body: JSON.stringify(result),
+      signal: AbortSignal.timeout(10_000),
+    })
+    const j = await r.json().catch(() => ({}))
+    report = { ok: r.ok, at, http: r.status, ...(j.status ? { status: j.status } : {}), ...(j.error ? { error: j.error } : {}) }
+  } catch (e) {
+    report = { ok: false, at, error: String(e?.message || e).slice(0, 200) }
+  }
+  if (!report.ok) console.log(`report failed: ${JSON.stringify(report)}`)
+}
 
 async function tick() {
   latest = await runChecks()
   if (!latest.ok) console.log(JSON.stringify(latest))
-  if (env.HEALTH_REPORT_URL) {
-    fetch(env.HEALTH_REPORT_URL, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', authorization: `Bearer ${env.HEALTH_REPORT_TOKEN || ''}` },
-      body: JSON.stringify(latest),
-      signal: AbortSignal.timeout(10_000),
-    }).catch((e) => console.log(`report failed: ${e.message}`))
-  }
+  if (env.HEALTH_REPORT_URL) send(latest)
 }
 
 http.createServer((req, res) => {
   if (req.url !== '/health') { res.writeHead(404).end(); return }
   res.writeHead(latest.ok ? 200 : 503, { 'content-type': 'application/json' })
-  res.end(JSON.stringify(latest, null, 2))
+  res.end(JSON.stringify({ ...latest, report }, null, 2))
 }).listen(8099, () => console.log(`health agent for ${BOX_ID} on :8099, every ${INTERVAL / 1000}s`))
 
 tick()

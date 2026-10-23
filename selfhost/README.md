@@ -67,9 +67,18 @@ The build-box test uses the `mailtest` profile instead (`SMTP_HOST=mailpit`,
 `SMTP_PORT=1025`, `docker compose --profile mailtest up -d mailpit`).
 
 ### Remote access (ours, revocable by the client)
-Put a one-off tailnet key in `TS_AUTHKEY`, then `docker compose --profile remote up -d tailscale`.
-The client cuts us off with `docker compose --profile remote stop tailscale`, or by
-removing the box from the tailnet. No auth key is ever committed.
+Put a one-off tailnet key in `TS_AUTHKEY`; `install.sh` then starts the `remote` profile
+(or run `docker compose --profile remote up -d tailscale`). The box joins as
+`suitecxo-<BOX_ID>`. The client cuts us off with `docker compose --profile remote stop tailscale`,
+or by removing the box from the tailnet. No auth key is ever committed; keys are made in
+the Suite CXO tailnet admin (vault: Secrets & Access) as one-off, pre-approved, tagged `tag:suitecxo-box`.
+
+### Fleet check-in (ours)
+The `health` agent posts the box's health to `HEALTH_REPORT_URL` every minute, signed with the
+box's licence (no extra secret). Suite CXO keeps one row per box in `private_server_boxes`;
+`private_server_box_status` adds `health` (`ok`, `failing`, or `offline` after 10 quiet minutes)
+and licence days left. The report holds check names, timings and errors only, never client data.
+`curl -s 127.0.0.1:8099/health` shows the last post under `report`. Blank the URL to stop it.
 
 ### Backups
 `backup` runs `backup.sh` on `BACKUP_CRON` (default 02:30). Check a restore any time:

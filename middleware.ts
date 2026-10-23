@@ -25,6 +25,7 @@ const PUBLIC_PREFIXES = [
   '/api/cron',     // cron uses bearer token
   '/api/admin',
   '/api/ops/onboarding', // Accounts (crmbuilds): its own shared-secret bearer
+  '/api/ops/private-server', // client boxes check in, signed with their licence
   '/api/webhooks', // each webhook authenticates via its own secret / HMAC
   '/api/meetings/inbound', // per-member secret token in the path
   '/api/native/session', // the phone app's sign-in (email + password in the body)

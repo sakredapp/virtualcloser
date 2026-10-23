@@ -95,6 +95,11 @@ fi
 log "Starting the stack"
 docker compose up -d
 docker compose logs migrate | tail -3
+# Our remote-care tunnel joins the tailnet only when a key is in .env.
+if [ -n "$(getv TS_AUTHKEY)" ]; then
+  log "Joining the Suite CXO tailnet (TS_AUTHKEY set)"
+  docker compose --profile remote up -d tailscale
+fi
 
 # 6. Wait for the health agent to report every check green.
 log "Waiting for health (up to 5 min)"

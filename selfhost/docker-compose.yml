@@ -205,9 +205,11 @@ services:
       SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
       HEALTH_REPORT_URL: ${HEALTH_REPORT_URL:-}
       HEALTH_REPORT_TOKEN: ${HEALTH_REPORT_TOKEN:-}
+      LICENCE_FILE: /licence/licence.key
       HEALTH_DISK_PATHS: /,/backup-repo
     volumes:
       - ./health/agent.mjs:/agent/agent.mjs:ro
+      - ./box-licence:/licence:ro
       - ${BACKUP_DIR:-./data/backup-repo}:/backup-repo:ro
     ports:
       - "127.0.0.1:${HEALTH_PORT:-8099}:8099"
@@ -254,6 +256,9 @@ services:
       TS_USERSPACE: "false"
     volumes:
       - tailscale-state:/var/lib/tailscale
+    deploy:
+      resources:
+        limits: { cpus: "0.25", memory: 128m }
 
 volumes:
   db-data:

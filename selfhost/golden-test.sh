@@ -13,6 +13,7 @@ cd "$(dirname "$0")"
 fails=0
 pass() { printf 'PASS  %s\n' "$*"; }
 fail() { printf 'FAIL  %s\n' "$*"; fails=$((fails+1)); }
+skip() { printf 'SKIP  %s\n' "$*"; }
 getv() { grep -E "^$1=" .env | head -1 | cut -d= -f2- | sed -E "s/[[:space:]]+#.*$//; s/^'(.*)'$/\1/"; }
 dc() { docker compose "$@"; }
 psqlq() { dc exec -T db psql -U postgres -d suitecxo -tAc "$1"; }
@@ -112,6 +113,24 @@ docker rm -f scxo-licence-test >/dev/null 2>&1
 out=$(docker run --rm -e BOX_ID="$BOX" -v "$PWD/licence/fixtures/tampered.key:/licence/licence.key:ro" suitecxo-worker:local node /selfhost-licence/check.mjs verify; echo "exit=$?")
 printf '%s' "$out" | grep -q 'signature does not match' && printf '%s' "$out" | grep -q 'exit=3' \
   && pass "licence tampered: refused (signature does not match)" || fail "licence tampered: $out"
+
+# 12. Remote care: the fleet check-in reaches Suite CXO, and the tailnet is joined.
+if [ -n "$(getv HEALTH_REPORT_URL)" ]; then
+  for _ in $(seq 1 30); do
+    curl -s "http://127.0.0.1:${HEALTH_PORT}/health" -o /tmp/health.json
+    grep -q '"report"' /tmp/health.json && ! grep -q 'first report pending' /tmp/health.json && break; sleep 5
+  done
+  rep=$(tr -d '\n ' < /tmp/health.json | grep -o '"report":{[^}]*}')
+  case "$rep" in *'"ok":true'*) pass "fleet check-in: $rep" ;; *) fail "fleet check-in: ${rep:-no report}" ;; esac
+else
+  skip "fleet check-in: HEALTH_REPORT_URL is blank (reports stay on the box)"
+fi
+if [ -n "$(getv TS_AUTHKEY)" ]; then
+  st=$(dc --profile remote exec -T tailscale tailscale status --json 2>/dev/null | grep -o '"BackendState": *"[A-Za-z]*"' | head -1)
+  case "$st" in *Running*) pass "tailnet joined as suitecxo-$(getv BOX_ID | tr -d "'") ($st)" ;; *) fail "tailnet: ${st:-tailscale not running}" ;; esac
+else
+  skip "tailnet: TS_AUTHKEY is blank (no remote access)"
+fi
 
 # 11. Limits are set (so the box keeps headroom)
 nolim=$(for c in $(dc ps -q); do docker inspect -f '{{.Name}} {{.HostConfig.Memory}}' "$c"; done | awk '$2==0{print $1}')
