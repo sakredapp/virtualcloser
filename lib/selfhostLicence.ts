@@ -4,7 +4,7 @@
  * the app with LICENCE_SEATS set; nothing here re-reads the file or calls out.
  * Returns null in the cloud (no SELFHOST=1), where seats come from billing.
  */
-export function licenceSeatCap(env: NodeJS.ProcessEnv = process.env): number | null {
+export function licenceSeatCap(env: Record<string, string | undefined> = process.env): number | null {
   if (env.SELFHOST !== '1') return null
   const n = parseInt(env.LICENCE_SEATS?.trim() || '', 10)
   return Number.isInteger(n) && n > 0 ? n : null

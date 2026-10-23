@@ -10,12 +10,11 @@ import path from 'node:path'
 // signed with the real key and are expired or tampered, never valid.
 const root = path.resolve(__dirname, '..')
 const lic = path.join(root, 'selfhost/licence')
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let L: any
+let L: typeof import('../selfhost/licence/licence.mjs')
 const { privateKey, publicKey } = crypto.generateKeyPairSync('ed25519')
 const PRIV = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString()
 const PUB = publicKey.export({ type: 'spki', format: 'pem' }).toString()
-const base = { v: 1, client_id: 'acme', client_name: 'Acme Corp', box_id: 'acme-01', seats: 25, issued_at: '2026-10-23T00:00:00.000Z', expires_at: '2027-10-31' }
+const base: import('../selfhost/licence/licence.mjs').LicencePayload = { v: 1, client_id: 'acme', client_name: 'Acme Corp', box_id: 'acme-01', seats: 25, issued_at: '2026-10-23T00:00:00.000Z', expires_at: '2027-10-31' }
 
 beforeEach(async () => {
   L = await import('../selfhost/licence/licence.mjs')
@@ -64,7 +63,7 @@ describe('licence format', () => {
 
 describe('boot gate (check.mjs)', () => {
   const run = (args: string[], env: Record<string, string>) =>
-    spawnSync(process.execPath, [path.join(lic, 'check.mjs'), ...args], { env: { PATH: process.env.PATH ?? '', ...env }, encoding: 'utf8', timeout: 10_000 })
+    spawnSync(process.execPath, [path.join(lic, 'check.mjs'), ...args], { env: { PATH: process.env.PATH ?? '', ...env } as NodeJS.ProcessEnv, encoding: 'utf8' as const, timeout: 10_000 })
 
   it('verify: exit 3 with the reason for an expired or missing licence', () => {
     const exp = run(['verify'], { LICENCE_FILE: path.join(lic, 'fixtures/expired.key'), BOX_ID: 'buildbox-test' })
