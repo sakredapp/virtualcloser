@@ -24,6 +24,12 @@ import type * as AI from './aiTypes'
  *
  * Privacy: every OpenRouter request carries provider.data_collection='deny',
  * so Pinnacle data only reaches hosts that neither store nor train on it.
+ *
+ * Private server (selfhost/, SELFHOST=1) with LOCAL_LLM_URL set: every call
+ * goes to the client's own model server instead (Ollama or vLLM, both speak
+ * the OpenAI chat API), model id `local:<LOCAL_LLM_MODEL>`. Nothing leaves the
+ * box and OpenRouter is not needed. The banned-model list still applies. The
+ * model's name is internal: never show it in client copy (Ciao is "Ciao").
  */
 
 // ---------------------------------------------------------------------------
@@ -55,10 +61,37 @@ export function checkModelAllowed(modelId: string | undefined | null): { ok: boo
       }
     }
   }
+  if (id.startsWith('local:')) {
+    return localLlmConfigured()
+      ? { ok: true }
+      : { ok: false, reason: `model "${modelId}" is a local model, which only runs on a private server with LOCAL_LLM_URL set.` }
+  }
   if (!id.startsWith('openrouter:')) {
     return { ok: false, reason: `model "${modelId}" is not an OpenRouter model id (openrouter:...). All AI runs on OpenRouter.` }
   }
   return { ok: true }
+}
+
+/**
+ * A private server's own model server (selfhost/: profile local-llm, or a vLLM
+ * box): SELFHOST=1 and LOCAL_LLM_URL (OpenAI-compatible base URL, e.g.
+ * http://ollama:11434/v1). Never on Vercel: the cloud stays on OpenRouter.
+ */
+export function localLlmConfigured(): boolean {
+  return process.env.SELFHOST === '1' && Boolean((process.env.LOCAL_LLM_URL || '').trim())
+}
+
+/** Thrown when a private server's local model setup is incomplete. */
+export class LocalModelError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'LocalModelError'
+  }
+}
+
+function localModel(envName: 'LOCAL_LLM_MODEL' | 'LOCAL_LLM_VISION_MODEL'): string | null {
+  const m = (process.env[envName] || '').trim()
+  return m ? `local:${m}` : null
 }
 
 export function assertModelAllowed(modelId: string | undefined | null): void {
@@ -66,9 +99,9 @@ export function assertModelAllowed(modelId: string | undefined | null): void {
   if (!r.ok) throw new Error(`[ai-guard] ${r.reason}`)
 }
 
-/** True when the OpenRouter rail is configured (names only, never values). */
+/** True when an AI rail is configured: OpenRouter, or a private server's local model (names only, never values). */
 export function openRouterConfigured(): boolean {
-  return Boolean((process.env.OPENROUTER_API_KEY || '').trim())
+  return localLlmConfigured() || Boolean((process.env.OPENROUTER_API_KEY || '').trim())
 }
 
 /** Thrown when an AI call is made with no OPENROUTER_API_KEY. Never a silent fallback. */
@@ -85,6 +118,12 @@ export class AINotConfiguredError extends Error {
  */
 let textOverrideWarned = false
 export function textModelId(): string {
+  if (localLlmConfigured()) {
+    const m = localModel('LOCAL_LLM_MODEL')
+    if (!m) throw new LocalModelError('LOCAL_LLM_URL is set but LOCAL_LLM_MODEL is not: name the model the local server runs.')
+    assertModelAllowed(m)
+    return m
+  }
   const env = (process.env.PLATFORM_ASSISTANT_MODEL_ID || '').trim()
   // Only a GLM id on OpenRouter is honoured: anything else here would quietly
   // put text work on an expensive or banned model.
@@ -98,15 +137,23 @@ export function textModelId(): string {
 
 /** The vision model. OPENROUTER_VISION_MODEL may override it with another allowed OpenRouter id. */
 export function visionModelId(): string {
+  if (localLlmConfigured()) {
+    const m = localModel('LOCAL_LLM_VISION_MODEL')
+    if (!m) throw new LocalModelError('Pictures need a vision model on this server: set LOCAL_LLM_VISION_MODEL.')
+    assertModelAllowed(m)
+    return m
+  }
   const id = (process.env.OPENROUTER_VISION_MODEL || '').trim() || VISION_MODEL_DEFAULT
   assertModelAllowed(id)
   return id
 }
 
-/** "openrouter:z-ai/glm-5.3" -> "z-ai/glm-5.3" (the id OpenRouter expects). */
+/** "openrouter:z-ai/glm-5.3" -> "z-ai/glm-5.3" (the id OpenRouter expects); "local:qwen3:32b" -> "qwen3:32b". */
 export function openRouterWireModel(id: string): string {
-  return id.replace(/^openrouter:/i, '')
+  return id.replace(/^(openrouter|local):/i, '')
 }
+
+const isLocalModel = (id: string) => /^local:/i.test(id)
 
 // ---------------------------------------------------------------------------
 // Routing
@@ -134,7 +181,7 @@ export function hasVisionBlocks(params: Pick<CreateParams, 'messages'>): boolean
   return someBlock(params, (t) => t === 'image')
 }
 
-export type Route = { provider: 'openrouter'; model: string; reason: 'text' | 'vision' }
+export type Route = { provider: 'openrouter' | 'local'; model: string; reason: 'text' | 'vision' }
 
 export function routeFor(params: Pick<CreateParams, 'messages' | 'model'>): Route {
   // A raw PDF never goes to a model: extract its text on the server first.
@@ -142,8 +189,9 @@ export function routeFor(params: Pick<CreateParams, 'messages' | 'model'>): Rout
     throw new Error('[ai] PDF blocks are not sent to a model. Extract the text first (lib/extractText.ts) and send that.')
   }
   if (!openRouterConfigured()) throw new AINotConfiguredError()
-  if (hasVisionBlocks(params)) return { provider: 'openrouter', model: visionModelId(), reason: 'vision' }
-  return { provider: 'openrouter', model: textModelId(), reason: 'text' }
+  const provider = localLlmConfigured() ? 'local' : 'openrouter'
+  if (hasVisionBlocks(params)) return { provider, model: visionModelId(), reason: 'vision' }
+  return { provider, model: textModelId(), reason: 'text' }
 }
 
 // ---------------------------------------------------------------------------
@@ -268,6 +316,9 @@ export function buildOpenRouterBody(params: CreateParams, modelId: string): Reco
     body.tools = tools
     body.tool_choice = toOpenAiToolChoice(params.tool_choice) ?? 'auto'
   }
+  // A local model server (Ollama / vLLM) gets the plain OpenAI body: the
+  // OpenRouter routing, usage and reasoning fields mean nothing there.
+  if (isLocalModel(modelId)) return body
   // Same provider block as crmbuilds openai-converse.ts. data_collection=deny
   // and zdr on EVERY request: only hosts that neither train on nor retain
   // prompts (zero data retention). Client data never sits on an AI host.
@@ -391,20 +442,26 @@ export type OpenRouterCallOptions = { signal?: AbortSignal }
 
 export async function openRouterCreate(params: CreateParams, modelId: string, opts: OpenRouterCallOptions = {}): Promise<AI.Message> {
   assertModelAllowed(modelId)
-  const key = (process.env.OPENROUTER_API_KEY || '').trim()
-  if (!key) throw new AINotConfiguredError()
-  const endpoint = process.env.OPENROUTER_CHAT_URL || 'https://openrouter.ai/api/v1/chat/completions'
+  const local = isLocalModel(modelId)
+  const key = (local ? process.env.LOCAL_LLM_API_KEY || '' : process.env.OPENROUTER_API_KEY || '').trim()
+  if (!key && !local) throw new AINotConfiguredError()
+  const endpoint = local
+    ? `${(process.env.LOCAL_LLM_URL || '').trim().replace(/\/+$/, '')}/chat/completions`
+    : process.env.OPENROUTER_CHAT_URL || 'https://openrouter.ai/api/v1/chat/completions'
   const body = buildOpenRouterBody(params, modelId)
-  const headers = {
-    'content-type': 'application/json',
-    authorization: `Bearer ${key}`,
-    'HTTP-Referer': 'https://suitecxo.com',
-    'X-Title': 'Suite CXO',
-  }
+  const headers: Record<string, string> = local
+    ? { 'content-type': 'application/json', ...(key ? { authorization: `Bearer ${key}` } : {}) }
+    : {
+        'content-type': 'application/json',
+        authorization: `Bearer ${key}`,
+        'HTTP-Referer': 'https://suitecxo.com',
+        'X-Title': 'Suite CXO',
+      }
   let adjusted = 0
   // A stalled host is the long tail: the first attempt gets a cutoff and one
   // fresh try (it usually lands on another host). Later attempts run uncut.
-  const stallMs = Number(process.env.OPENROUTER_STALL_MS ?? 18_000)
+  // A local model has no other host to retry on, and a cold load can be slow.
+  const stallMs = local ? 0 : Number(process.env.OPENROUTER_STALL_MS ?? 18_000)
   const single = Boolean(opts.signal)
   let stalled = single
   for (let attempt = 0; ; attempt++) {
@@ -442,7 +499,7 @@ export async function openRouterCreate(params: CreateParams, modelId: string, op
       continue
     }
     const detail = errMsg.slice(0, 300).replace(KEY_SHAPED_RE, '[redacted]')
-    const e = new Error(`openrouter ${openRouterWireModel(modelId)} HTTP ${res.status}: ${detail}`) as Error & { status?: number }
+    const e = new Error(`${local ? 'local model' : 'openrouter'} ${openRouterWireModel(modelId)} HTTP ${res.status}: ${detail}`) as Error & { status?: number }
     e.status = res.status
     throw e
   }
@@ -478,6 +535,7 @@ const PRICES: Array<{ match: RegExp; input: number; output: number }> = [
 /** $/Mtok for a model id. Opus/Sonnet cards stay only to price old usage rows. Unknown ids price at the conservative pre-GLM rate. */
 export function pricesFor(modelId: string | null | undefined): { input: number; output: number } {
   const id = String(modelId ?? '')
+  if (isLocalModel(id)) return { input: 0, output: 0 } // the client's own hardware
   const p = PRICES.find((x) => x.match.test(id))
   return p ? { input: p.input, output: p.output } : { input: 3, output: 15 }
 }

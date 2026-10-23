@@ -3,7 +3,7 @@
 #
 # Profiles:
 #   (default)   app, worker, db, migrate, postgrest, caddy, ofelia, backup, health
-#   local-llm   + ollama (a GPU box; then LLM_BASE_URL=http://ollama:11434/v1)
+#   local-llm   + ollama (the client's own model; then LOCAL_LLM_URL=http://ollama:11434/v1)
 #   remote      + tailscale (our outbound tunnel; needs TS_AUTHKEY in .env)
 #   mailtest    + mailpit (a local mail catcher; golden-test.sh only: SMTP_HOST=mailpit SMTP_PORT=1025)
 #
@@ -27,11 +27,16 @@ x-app-env: &app-env
   CRON_SECRET: ${CRON_SECRET:?run install.sh first}
   ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH:-}
   NEXT_PUBLIC_APP_URL: https://${SITE_HOST:-localhost}
-  # AI: one OpenAI-compatible endpoint. v1 default is OpenRouter; on a GPU box
-  # LLM_BASE_URL=http://ollama:11434/v1 (profile local-llm).
+  # AI (lib/aiProvider.ts). LOCAL_LLM_URL set = Ciao runs on the client's own
+  # model server (profile local-llm, or a vLLM box) and nothing leaves the box.
+  # Blank = OpenRouter with LLM_API_KEY. Test: POST /api/cron/selfhost-ai-test.
   OPENROUTER_CHAT_URL: ${LLM_BASE_URL:-https://openrouter.ai/api/v1}/chat/completions
   OPENROUTER_API_KEY: ${LLM_API_KEY:-}
   PLATFORM_ASSISTANT_MODEL_ID: ${LLM_MODEL_ID:-}
+  LOCAL_LLM_URL: ${LOCAL_LLM_URL:-}
+  LOCAL_LLM_MODEL: ${LOCAL_LLM_MODEL:-}
+  LOCAL_LLM_VISION_MODEL: ${LOCAL_LLM_VISION_MODEL:-}
+  LOCAL_LLM_API_KEY: ${LOCAL_LLM_API_KEY:-}
   # Email out through the client's own mailbox (lib/emailSmtp.ts). Blank
   # SMTP_HOST = the box sends no mail. Test: POST /api/cron/selfhost-mail-test.
   SMTP_HOST: ${SMTP_HOST:-}
@@ -223,6 +228,10 @@ services:
     restart: unless-stopped
     volumes:
       - ollama-models:/root/.ollama
+    # RAM for the model's weights on CPU; size OLLAMA_MEMORY to the model.
+    deploy:
+      resources:
+        limits: { memory: "${OLLAMA_MEMORY:-6g}" }
     # On an NVIDIA box add the GPU reservation (needs nvidia-container-toolkit):
     # deploy:
     #   resources:

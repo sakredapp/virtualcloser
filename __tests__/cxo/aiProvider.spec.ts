@@ -5,7 +5,7 @@ import path from 'node:path'
 
 vi.mock('@/lib/supabase', () => ({ supabase: {} }))
 
-const ENV_KEYS = ['OPENROUTER_API_KEY', 'ANTHROPIC_API_KEY', 'PLATFORM_ASSISTANT_MODEL_ID', 'OPENROUTER_VISION_MODEL', 'OPENROUTER_REASONING']
+const ENV_KEYS = ['OPENROUTER_API_KEY', 'ANTHROPIC_API_KEY', 'PLATFORM_ASSISTANT_MODEL_ID', 'OPENROUTER_VISION_MODEL', 'OPENROUTER_REASONING', 'SELFHOST', 'LOCAL_LLM_URL', 'LOCAL_LLM_MODEL', 'LOCAL_LLM_VISION_MODEL', 'LOCAL_LLM_API_KEY']
 const saved: Record<string, string | undefined> = {}
 
 beforeEach(() => {
@@ -193,5 +193,80 @@ describe('source scan', () => {
   it('does not list @anthropic-ai/sdk as a dependency', () => {
     const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))
     expect({ ...pkg.dependencies, ...pkg.devDependencies }['@anthropic-ai/sdk']).toBeUndefined()
+  })
+})
+
+// Private server (selfhost/): Ciao on the client's own model server (Ollama /
+// vLLM, OpenAI-compatible). No GPU needed: the server is a mocked fetch.
+describe('local model rail (private server)', () => {
+  const box = (extra: Record<string, string> = {}) => {
+    Object.assign(process.env, { SELFHOST: '1', LOCAL_LLM_URL: 'http://ollama:11434/v1/', LOCAL_LLM_MODEL: 'qwen3:32b' }, extra)
+  }
+
+  it('routes every call to the local model when LOCAL_LLM_URL is set on a box, with no OpenRouter key', async () => {
+    box()
+    const { routeFor, openRouterConfigured } = await import('@/lib/aiProvider')
+    expect(openRouterConfigured()).toBe(true)
+    expect(routeFor({ model: 'claude-sonnet-4-5', max_tokens: 10, messages: [{ role: 'user', content: 'hi' }] })).toEqual({ provider: 'local', model: 'local:qwen3:32b', reason: 'text' })
+    const { hasAIKey } = await import('@/lib/ai')
+    expect(hasAIKey()).toBe(true)
+  })
+
+  it('stays on OpenRouter off a box (Vercel never uses LOCAL_LLM_URL)', async () => {
+    process.env.LOCAL_LLM_URL = 'http://ollama:11434/v1'
+    process.env.LOCAL_LLM_MODEL = 'qwen3:32b'
+    const { openRouterConfigured, checkModelAllowed } = await import('@/lib/aiProvider')
+    expect(openRouterConfigured()).toBe(false)
+    expect(checkModelAllowed('local:qwen3:32b').ok).toBe(false)
+  })
+
+  it('fails clearly without a model name, and refuses pictures without a vision model', async () => {
+    box({ LOCAL_LLM_MODEL: '' })
+    const { routeFor, LocalModelError } = await import('@/lib/aiProvider')
+    expect(() => routeFor({ max_tokens: 10, messages: [{ role: 'user', content: 'hi' }] })).toThrow(LocalModelError)
+    process.env.LOCAL_LLM_MODEL = 'qwen3:32b'
+    expect(() => routeFor({ max_tokens: 10, messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'AA==' } }] }] })).toThrow(/LOCAL_LLM_VISION_MODEL/)
+    process.env.LOCAL_LLM_VISION_MODEL = 'qwen2.5vl:7b'
+    expect(routeFor({ max_tokens: 10, messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'AA==' } }] }] }).model).toBe('local:qwen2.5vl:7b')
+  })
+
+  it('keeps the no-Claude / no-Haiku ban for local models too', async () => {
+    box({ LOCAL_LLM_MODEL: 'claude-haiku-distill' })
+    const { routeFor } = await import('@/lib/aiProvider')
+    expect(() => routeFor({ max_tokens: 10, messages: [{ role: 'user', content: 'hi' }] })).toThrow(/haiku|claude/i)
+  })
+
+  it('calls the local server with a plain OpenAI body, no OpenRouter fields, no key unless set, and costs $0', async () => {
+    box()
+    const calls: Array<{ url: string; headers: Record<string, string>; body: Record<string, any> }> = []
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init: { body: string; headers: Record<string, string> }) => {
+      calls.push({ url: String(url), headers: init.headers, body: JSON.parse(init.body) })
+      return new Response(JSON.stringify({ id: 'x', choices: [{ finish_reason: 'stop', message: { content: 'OK' } }], usage: { prompt_tokens: 9, completion_tokens: 1 } }), { status: 200 })
+    }))
+    const { getAI } = await import('@/lib/ai')
+    const msg = await getAI().messages.create({ model: 'claude-sonnet-4-5', max_tokens: 16, messages: [{ role: 'user', content: 'Reply OK' }] })
+    expect(calls[0].url).toBe('http://ollama:11434/v1/chat/completions')
+    expect(calls[0].body.model).toBe('qwen3:32b')
+    expect(calls[0].body).not.toHaveProperty('provider')
+    expect(calls[0].body).not.toHaveProperty('reasoning')
+    expect(calls[0].headers).not.toHaveProperty('authorization')
+    expect(JSON.stringify(calls[0].headers)).not.toMatch(/suitecxo|Suite CXO/)
+    expect(msg.content[0]).toMatchObject({ type: 'text', text: 'OK' })
+    const { estimateCostUsd, pricesFor } = await import('@/lib/aiProvider')
+    expect(pricesFor('local:qwen3:32b')).toEqual({ input: 0, output: 0 })
+    expect(typeof estimateCostUsd).toBe('function')
+
+    process.env.LOCAL_LLM_API_KEY = 'vllm-key'
+    await getAI().messages.create({ max_tokens: 16, messages: [{ role: 'user', content: 'again' }] })
+    expect(calls[1].headers.authorization).toBe('Bearer vllm-key')
+  })
+
+  it('the box wires the LOCAL_LLM_* settings and an AI test route that hides the model name', () => {
+    const root = path.resolve(__dirname, '../..')
+    const compose = fs.readFileSync(path.join(root, 'selfhost/docker-compose.yml'), 'utf8')
+    for (const k of ['LOCAL_LLM_URL', 'LOCAL_LLM_MODEL', 'LOCAL_LLM_VISION_MODEL', 'LOCAL_LLM_API_KEY']) expect(compose).toContain(`${k}: \${${k}:-}`)
+    const route = fs.readFileSync(path.join(root, 'app/api/cron/selfhost-ai-test/route.ts'), 'utf8')
+    expect(route).toContain("process.env.SELFHOST !== '1'")
+    expect(route).not.toMatch(/model:\s*route\.model/)
   })
 })

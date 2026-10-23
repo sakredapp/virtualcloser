@@ -104,10 +104,23 @@ the catalogs with `db/baseline-generate.sql`. New migrations are appended BELOW 
 `# baseline` line in `db/migrations.txt` (the vitest guard fails if one is missing).
 Regenerate the baseline when the list below the line gets long.
 
+## AI on the client's own model
+
+By default Ciao uses OpenRouter (`LLM_API_KEY`). For a client whose data may not leave the building, set
+`LOCAL_LLM_URL` and `LOCAL_LLM_MODEL` in `.env` and Ciao talks only to a model server on their network:
+
+- **Bundled Ollama:** `LOCAL_LLM_URL=http://ollama:11434/v1`. `install.sh` starts the `local-llm` profile and pulls
+  `LOCAL_LLM_MODEL`. On an NVIDIA box, uncomment the GPU reservation on `ollama` and set `OLLAMA_MEMORY`.
+- **vLLM (or any OpenAI-compatible server):** point `LOCAL_LLM_URL` at its `/v1` base; `LOCAL_LLM_API_KEY` if it asks for one.
+- Pictures need `LOCAL_LLM_VISION_MODEL`; without one they are refused with a clear message.
+- Claude, Anthropic and Haiku models are refused here too. The model name is internal: clients only ever see "Ciao".
+- Prove it: `curl -X POST -H "Authorization: Bearer $CRON_SECRET" https://<box>/api/cron/selfhost-ai-test` answers
+  `{"ok":true,"provider":"local",...}`; `golden-test.sh` check 13 does the same.
+
 ## Notes and limits (v1)
 - Building the app image needs internet (next/font fetches Google fonts; the build retries 3 times). The built image runs offline.
 - Docker publishes ports past ufw. Only Caddy (on `BIND_ADDR`) and the health agent (on 127.0.0.1) publish.
 - Every container has a CPU and memory limit (about 7 GB total).
-- The app routes `localhost` and bare IPs to Suite CXO (`LOCAL_BRAND=cxo`). A named host such as `ciao.acme.local` needs a host mapping in `lib/brand.ts` (open item).
+- The app routes `localhost`, bare IPs and private names such as `ciao.acme.local` to Suite CXO (`lib/brand.ts`).
 - The Pinnacle Airtable cron is not scheduled on a box. Whop, Resend/SES, Fathom, Telegram and Tavily stay off unless set in `.env`; mail goes through the client's SMTP.
 - Compliance: infra only. No lead data flows change; the box keeps a client's data on the client's machine.
