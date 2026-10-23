@@ -922,7 +922,7 @@ export function buildMcpServer(auth: McpAuthContext, opts: McpBuildOptions = {})
       description: 'Change one setting for the person: role checked, validated, saved and read back. Careful ones answer needs_confirmation: read back the change, get their yes, then call again with confirm: true. A link in the answer means they do it on the page.',
       inputSchema: {
         key: z.string().min(1).max(120),
-        value: z.unknown().describe('The new value, as explain_setting describes.'),
+        value: z.unknown().describe('The new value, as explain_setting describes. "Back to the default", "reset" or "clear" is "default", never "off".'),
         target: z.string().max(200).optional().describe('Only for a setting about another teammate: their name or email.'),
         confirm: z.boolean().optional().describe('true only after the person said yes to this exact change.'),
       },

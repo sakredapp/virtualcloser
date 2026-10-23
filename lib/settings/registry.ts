@@ -23,6 +23,8 @@ import {
   findEntry,
   searchEntries,
   validateSettingValue,
+  describeSettingChange,
+  displayValue,
   whoText,
   type RegistryEntry,
 } from '@/lib/settings/registryShared'
@@ -580,13 +582,20 @@ export async function setupProgress(ctx: Pick<RegistryCtx, 'tenant' | 'member'>)
   }
 }
 
-/** For the Ciao confirm gate: the readback lines for a risky change_setting / do_action. */
-export function describeRegistryCall(name: string, args: Record<string, unknown>): string[] | null {
+/** For the Ciao confirm gate: the readback lines for a risky change_setting / do_action, in plain words. */
+export function describeRegistryCall(name: string, args: Record<string, unknown>, opts: { targetName?: string } = {}): string[] | null {
   const e = findEntry(args.key)
   if (!e) return null
-  const input = asObj(name === 'change_setting' ? { value: args.value, target: args.target } : args.input)
-  const bits = Object.entries(input)
-    .filter(([, v]) => v !== undefined && v !== null && v !== '')
-    .map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v).slice(0, 120) : String(v).slice(0, 120)}`)
-  return [`${e.label}${bits.length ? ` (${bits.join(', ')})` : ''}.`, ...(e.riskWhy ? [`Why I am checking: ${e.riskWhy}`] : [])]
+  const why = e.riskWhy ? [`Why I am checking: ${e.riskWhy}`] : []
+  if (name === 'change_setting' && e.kind === 'setting') {
+    return [`${describeSettingChange(e, args.value, opts.targetName ?? args.target)}.`, ...why]
+  }
+  const shown = displayValue(asObj(args.input))
+  return [`${e.label}${shown && shown !== 'nothing' ? `: ${shown}` : ''}.`, ...why]
+}
+
+/** The confirm gate, before proposing a change about a teammate: who exactly (or the question to ask). */
+export async function resolveTargetName(repId: string, who: unknown): Promise<{ ok: true; name: string } | { ok: false; error: string; candidates?: string[] }> {
+  const t = await resolveMember(repId, who)
+  return t.ok ? { ok: true, name: t.member.display_name || t.member.email || str(who) } : t
 }

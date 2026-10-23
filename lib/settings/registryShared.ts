@@ -62,6 +62,11 @@ export type RegistryEntry = {
   scope: 'me' | 'company' | 'member'
   sources: string[]
   how: How
+  /**
+   * Plain words for the confirm card, per value ({target} is the teammate's name).
+   * Without it the card is built from the label (describeSettingChange).
+   */
+  phrases?: { on: string; off: string; default?: string }
 }
 
 const S = '/dashboard/settings'
@@ -202,8 +207,13 @@ export const REGISTRY: RegistryEntry[] = [
     aliases: ['comp access', 'see salaries', 'pay visibility', 'compensation access'],
     what: 'Lets one teammate see (or never see) pay, salary and bonus dollars. Default: owners and admins see it, nobody else.',
     where: { path: E, label: 'Ask the assistant (no page field)' }, type: 'string',
-    inputs: 'target: the teammate; value: "allow", "deny" or "default"',
+    inputs: 'target: the teammate; value: "allow", "deny" or "default". "Back to the default", "reset" or "clear" is "default" (never "off"): it removes their override, so owners and admins see pay and nobody else does',
     who: 'owner', risky: true, riskWhy: 'Opens or closes pay data for a person.', scope: 'member', sources: [], how: { mode: 'fn' },
+    phrases: {
+      on: 'Let {target} see pay and bonuses',
+      off: 'Stop {target} seeing pay and bonuses',
+      default: 'Put {target} back on the default for pay and bonuses (owners and admins see them, nobody else)',
+    },
   },
   {
     key: 'team.employee_records', kind: 'setting', label: "An employee's record (title, department, manager, hours, PTO)",
@@ -605,6 +615,18 @@ const bool = (v: unknown): boolean | null => {
   return null
 }
 
+/**
+ * Words that mean "back to the default" / "clear my override", for settings whose default is
+ * stored as no value (null). Checked before on/off so "reset" or "back to normal" is never off.
+ */
+export function meansDefault(v: unknown): boolean {
+  if (typeof v !== 'string') return false
+  const s = v.trim().toLowerCase().replace(/[’']/g, '').replace(/[^a-z\s]/g, ' ').replace(/\s+/g, ' ').trim()
+  if (!s) return false
+  if (/^(?:reset|reset it|clear|clear it|cleared|unset|none|null|inherit|inherited|undo|remove (?:the )?override|no override|automatic|auto)$/.test(s)) return true
+  return /^(?:(?:set|put|go|reset|change|move|switch|return|revert)(?: (?:it|them|him|her))? )?(?:back )?(?:to |on |onto )?(?:the )?(?:company |role )?(?:default|defaults|normal|usual|standard|original)(?: (?:setting|settings|access|value|rule|again))?$/.test(s)
+}
+
 export function validTimezone(tz: string): boolean {
   if (!tz || tz.length > 64) return false
   try {
@@ -660,9 +682,11 @@ export function validateSettingValue(key: string, value: unknown): Checked {
       return { ok: true, value: [...new Set(list)] }
     }
     case 'people.can_view_comp': {
+      // "Back to the default" clears the override (null): owners and admins see pay, nobody else.
+      // It must never be read as off (QA 2026-10-23 saved can_view_comp:false for "back to the default").
+      if (value === null || meansDefault(value)) return { ok: true, value: null }
       const s = String(value ?? '').trim().toLowerCase()
       const b = bool(s)
-      if (s === 'default' || s === 'reset') return { ok: true, value: null }
       if (s === 'allow' || s === 'grant') return { ok: true, value: true }
       if (s === 'deny' || s === 'never' || s === 'block') return { ok: true, value: false }
       return b === null ? { ok: false, error: 'Say allow, deny or default.' } : { ok: true, value: b }
@@ -693,4 +717,48 @@ export function sourceCovered(source: string, entries: RegistryEntry[] = REGISTR
   if (entries.some((e) => e.sources.includes(source))) return true
   if (exempt[source]) return true
   return Object.keys(exempt).some((k) => k.endsWith('*') && source.startsWith(k.slice(0, -1)))
+}
+
+// ── Plain words for the confirm card (pure) ────────────────────────────────
+
+const humanKey = (k: string): string => k.replace(/[_.]+/g, ' ').replace(/\s+/g, ' ').trim()
+
+/** A value as a person reads it: never "true", "null" or JSON. */
+export function displayValue(v: unknown): string {
+  if (v === null || v === undefined || v === '') return 'nothing'
+  if (typeof v === 'boolean') return v ? 'on' : 'off'
+  if (Array.isArray(v)) return v.map((x) => displayValue(x)).join(', ').slice(0, 200)
+  if (typeof v === 'object') {
+    return Object.entries(v as Record<string, unknown>)
+      .filter(([, x]) => x !== undefined && x !== null && x !== '')
+      .map(([k, x]) => `${humanKey(k)} ${displayValue(x)}`)
+      .join(', ')
+      .slice(0, 200)
+  }
+  return String(v).trim().slice(0, 160)
+}
+
+/**
+ * The confirm card line for one change_setting call, in plain words:
+ * "Let Jordan Ellis see pay and bonuses", "Turn off: Due-date reminders by email",
+ * "Set Your time zone to America/Chicago". Uses the entry's phrases when it has
+ * them, else its label and the value as a person reads it.
+ */
+export function describeSettingChange(e: RegistryEntry, value: unknown, target?: unknown): string {
+  const who = typeof target === 'string' ? target.trim().slice(0, 120) : ''
+  const v = validateSettingValue(e.key, value)
+  const val = v.ok ? v.value : value
+  const state: 'on' | 'off' | 'default' | null = val === null || meansDefault(val) ? 'default' : typeof val === 'boolean' ? (val ? 'on' : 'off') : null
+  const fill = (t: string) => t.replace(/\{target\}/g, who || 'them')
+  if (e.phrases && state) {
+    if (state === 'default') return fill(e.phrases.default ?? `Put {target} back on the default for ${e.label.toLowerCase()}`)
+    return fill(e.phrases[state])
+  }
+  const forWho = who ? ` for ${who}` : ''
+  if (state === 'default') return `Put ${e.label}${forWho} back to the default`
+  if (state === 'on') return `Turn on: ${e.label}${forWho}`
+  if (state === 'off') return `Turn off: ${e.label}${forWho}`
+  const shown = displayValue(val)
+  if (shown === 'nothing') return `Clear ${e.label}${forWho}`
+  return `Set ${e.label}${forWho} to ${shown}`
 }

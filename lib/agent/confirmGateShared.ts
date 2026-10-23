@@ -195,10 +195,41 @@ export function intentSummary(intent: Record<string, unknown>, fmt: (iso: string
   }
 }
 
+/**
+ * Ciao QA 2026-10-23 (after PR #129): Ciao sometimes wrote its own "Here is
+ * what I will do. Nothing is done yet ... Reply yes" WITHOUT calling the tool,
+ * so no pending row existed, the person's yes made the tool call, and the real
+ * gate asked a second time. The app writes the confirmation; Ciao never does.
+ */
+export const HAND_WRITTEN_CONFIRM_RULE =
+  '- Never write the confirmation yourself ("Here is what I will do", "Nothing is done yet", "Reply yes to go ahead", "Shall I go ahead?"). For anything that needs their yes (the writes above, careful settings such as who may see pay, actions that give or remove access), call the tool right away with the exact details: the app writes the proposal and asks for the yes. If you write it yourself they have to say yes twice.'
+
+/** The corrective note when a draft reply is a hand-written confirmation and no tool proposed anything. The person never sees it. */
+export const HAND_WRITTEN_CONFIRM_NOTE =
+  'System check (the user never sees this message): your draft reply asks them to confirm, but you did not call the tool, so nothing is waiting for their yes and they would have to say yes twice. ' +
+  'Call the tool now with the exact details (change_setting, do_action, or the write tool); the app shows the proposal and asks for the yes. Do not write a confirmation or ask "shall I go ahead" yourself. ' +
+  'If you still need a detail from them (which person, what time), ask only for that detail.'
+
+/** Draft text that reads like the gate's own proposal or a yes-request, written by the model instead of the app. */
+export function looksLikeHandWrittenConfirm(text: string): boolean {
+  const t = String(text ?? '').replace(/[‘’]/g, "'").replace(/[“”]/g, '"')
+  if (!t.trim()) return false
+  // The gate's own head line, copied.
+  if (/\bhere(?: is|'s| are) (?:what|the \d+ things) i(?:'ll| will) do\b/i.test(t)) return true
+  // Otherwise it takes both: "nothing is done yet" (or similar) AND a request for a yes.
+  const notYet = /\bnothing (?:is|has been|was|will be|gets) (?:done|changed|saved|sent|written|updated)(?: yet| until)\b/i.test(t)
+  const asksYes =
+    /\b(?:reply|say|answer|type|respond with) "?yes"?\b/i.test(t) ||
+    /\b(?:shall|should|can) i (?:go ahead|proceed|make (?:the|this|that) change)\b/i.test(t) ||
+    /\b(?:want|like) me to (?:go ahead|proceed)\b/i.test(t)
+  return notYet && asksYes
+}
+
 /** The prompt rules that match the gate (Suite CXO). */
 export const CONFIRM_GATE_RULES: string[] = [
   '- Anything that writes to Google or reaches another person (create, change or cancel a calendar event, an invite, an email, a message to a coworker or partner, praise, a 1:1 talking point, an approval decision, a new Google Sheet) is never done in the same turn. Call the tool with the exact details; the app shows them a proposal and runs it only after their yes in their next message. Never say it is done, booked or sent until a tool result says so.',
   '- "Book it" / "send it" in their first message still gets the proposal first. That is the rule, not a question: do not ask "are you sure" yourself.',
   '- Find and book ("find a time with Dana next week and book it"): first offer the open times (propose_choice), wait for their pick, then call the write tool with that start; the proposal and yes follow.',
   '- Their own things (their to-dos, reminders, notes, drafts that stay with them) run straight away; say plainly that you did it.',
+  HAND_WRITTEN_CONFIRM_RULE,
 ]
