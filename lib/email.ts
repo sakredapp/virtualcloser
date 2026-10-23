@@ -3,6 +3,7 @@ import { Resend } from 'resend'
 import { getBrand, type BrandKey } from './brand'
 import { senderFor } from './sender'
 import { emailLogoDarkHead, emailLogoHtml, type EmailLogo } from './emailLogo'
+import { sendViaSmtp, smtpConfig } from './emailSmtp'
 
 const ROOT_DOMAIN = process.env.ROOT_DOMAIN ?? 'virtualcloser.com'
 
@@ -81,6 +82,19 @@ export async function sendEmail(input: {
   brand: BrandKey
 }): Promise<{ ok: boolean; id?: string; error?: string }> {
   const sender = senderFor(input.brand)
+  // Self-hosted box (selfhost/): mail goes out through the client's own SMTP,
+  // from their own domain. Never on Vercel (needs SELFHOST=1).
+  const smtp = smtpConfig(process.env, sender.name)
+  if (smtp) {
+    return sendViaSmtp(smtp, {
+      to: input.to,
+      subject: input.subject,
+      html: input.html,
+      text: input.text,
+      replyTo: input.replyTo,
+      attachments: input.attachments,
+    })
+  }
   const c = client(sender.apiKey)
   if (!c) {
     console.warn('[email] no Resend API key for brand', sender.brand, '— skipping send')

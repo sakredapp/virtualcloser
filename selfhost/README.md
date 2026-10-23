@@ -16,6 +16,7 @@ Supabase: one `docker compose` stack, one installer, one test.
 | `health` | `node:22-alpine` + `health/agent.mjs` | app, API, worker heartbeat, disk; `127.0.0.1:8099/health`, optional POST to us | cron_heartbeats |
 | `ollama` | profile `local-llm` | the local model on a GPU box | OpenRouter |
 | `tailscale` | profile `remote` | our outbound-only management tunnel | — |
+| `mailpit` | profile `mailtest` | test-only mail catcher for `golden-test.sh` | — |
 
 The app needs no code change: it already reads one Supabase URL + service key
 and one OpenAI-compatible AI endpoint (`OPENROUTER_CHAT_URL`). The Vercel build
@@ -51,6 +52,20 @@ docker compose exec ollama ollama pull <model>
 Open item: `lib/aiProvider.ts` only accepts `openrouter:` GLM ids, so a local
 model id needs a small guard change before Ciao answers from Ollama.
 
+### Email (the client's own mailbox)
+The box has no Resend or SES. With `SMTP_HOST` set, every email the app sends
+goes through `lib/emailSmtp.ts` (Nodemailer) from `SMTP_FROM`, an address on the
+client's own domain (Microsoft 365 `smtp.office365.com:587`, Google
+`smtp.gmail.com:587` with an app password, or their relay). Blank `SMTP_HOST` =
+the box sends no mail. It only switches on where `SELFHOST=1` (set by compose),
+so Vercel is unaffected. Prove it on the box:
+
+```bash
+MAIL_TEST_TO=it@client.com bash selfhost/golden-test.sh     # sends one real test email
+```
+The build-box test uses the `mailtest` profile instead (`SMTP_HOST=mailpit`,
+`SMTP_PORT=1025`, `docker compose --profile mailtest up -d mailpit`).
+
 ### Remote access (ours, revocable by the client)
 Put a one-off tailnet key in `TS_AUTHKEY`, then `docker compose --profile remote up -d tailscale`.
 The client cuts us off with `docker compose --profile remote stop tailscale`, or by
@@ -85,5 +100,5 @@ Regenerate the baseline when the list below the line gets long.
 - Docker publishes ports past ufw. Only Caddy (on `BIND_ADDR`) and the health agent (on 127.0.0.1) publish.
 - Every container has a CPU and memory limit (about 7 GB total).
 - The app routes `localhost` and bare IPs to Suite CXO (`LOCAL_BRAND=cxo`). A named host such as `ciao.acme.local` needs a host mapping in `lib/brand.ts` (open item).
-- The Pinnacle Airtable cron is not scheduled on a box. Whop, Resend/SES, Fathom, Telegram and Tavily stay off unless set in `.env`.
+- The Pinnacle Airtable cron is not scheduled on a box. Whop, Resend/SES, Fathom, Telegram and Tavily stay off unless set in `.env`; mail goes through the client's SMTP.
 - Compliance: infra only. No lead data flows change; the box keeps a client's data on the client's machine.
