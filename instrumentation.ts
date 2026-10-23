@@ -15,26 +15,30 @@ export const onRequestError: Instrumentation.onRequestError = async (
   request,
   context,
 ) => {
-  try {
-    const { logError } = await import('@/lib/errors')
-    const path = request?.path ?? 'unknown'
-    const method = request?.method ?? ''
-    // Route handlers / server actions are real failures; treat them as 'error'.
-    // (Render errors still get logged but aren't paged unless fatal.)
-    await logError({
-      source: `route${context?.routePath ? `:${context.routePath}` : `:${path}`}`,
-      errorType: `unhandled_${context?.routeType ?? 'request'}`,
-      message: err instanceof Error ? err.message : String(err),
-      stack: err instanceof Error ? err.stack : undefined,
-      context: {
-        path,
-        method,
-        routerKind: context?.routerKind,
-        routeType: context?.routeType,
-        renderSource: context?.renderSource,
-      },
-    })
-  } catch {
-    // Never let diagnostics break the error path.
+  // Node only: lib/errors reaches lib/email, which can load nodemailer, and the
+  // edge bundle must not reference it. Webpack drops this branch on the edge.
+  if (process.env.NEXT_RUNTIME === 'nodejs') {
+    try {
+      const { logError } = await import('@/lib/errors')
+      const path = request?.path ?? 'unknown'
+      const method = request?.method ?? ''
+      // Route handlers / server actions are real failures; treat them as 'error'.
+      // (Render errors still get logged but aren't paged unless fatal.)
+      await logError({
+        source: `route${context?.routePath ? `:${context.routePath}` : `:${path}`}`,
+        errorType: `unhandled_${context?.routeType ?? 'request'}`,
+        message: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+        context: {
+          path,
+          method,
+          routerKind: context?.routerKind,
+          routeType: context?.routeType,
+          renderSource: context?.renderSource,
+        },
+      })
+    } catch {
+      // Never let diagnostics break the error path.
+    }
   }
 }
