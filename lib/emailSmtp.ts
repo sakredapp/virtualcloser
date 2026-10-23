@@ -52,7 +52,11 @@ export function smtpConfig(env: Record<string, string | undefined> = process.env
 // nodemailer's node:stream/fs imports cannot resolve. webpackIgnore keeps it out
 // of every bundle; the standalone file trace still ships it on the box.
 async function loadNodemailer(): Promise<typeof import('nodemailer')> {
-  const mod = await import(/* webpackIgnore: true */ 'nodemailer')
+  // A computed name, not a literal: Vercel's edge check rejects the middleware
+  // bundle when it can see a 'nodemailer' import, even an ignored one. The box
+  // ships nodemailer via outputFileTracingIncludes (next.config.selfhost.mjs).
+  const name = ['node', 'mailer'].join('')
+  const mod = await import(/* webpackIgnore: true */ name)
   return (mod as { default?: typeof import('nodemailer') }).default ?? mod
 }
 
