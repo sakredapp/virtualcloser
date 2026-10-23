@@ -132,6 +132,17 @@ else
   skip "tailnet: TS_AUTHKEY is blank (no remote access)"
 fi
 
+# 13. Ciao answers on the client's own model (LOCAL_LLM_URL), via the app's own AI path
+if [ -n "$(getv LOCAL_LLM_URL)" ]; then
+  r=$(curl -sk --max-time 300 --resolve "${SITE}:${HTTPS_PORT}:${BIND}" -X POST -H "Authorization: Bearer $(getv CRON_SECRET)" "https://${SITE}:${HTTPS_PORT}/api/cron/selfhost-ai-test")
+  case "$r" in *'"ok":true'*'"provider":"local"'*) pass "local AI answers: $r" ;; *) fail "local AI: ${r:-no answer}" ;; esac
+  # The test route is cron-secret only.
+  r=$(curl -sk --max-time 20 --resolve "${SITE}:${HTTPS_PORT}:${BIND}" -X POST "https://${SITE}:${HTTPS_PORT}/api/cron/selfhost-ai-test" -o /dev/null -w '%{http_code}')
+  [ "$r" = "401" ] && pass "AI test needs the cron secret (401 without)" || fail "AI test without secret: $r"
+else
+  skip "local AI: LOCAL_LLM_URL is blank (Ciao uses OpenRouter)"
+fi
+
 # 11. Limits are set (so the box keeps headroom)
 nolim=$(for c in $(dc ps -q); do docker inspect -f '{{.Name}} {{.HostConfig.Memory}}' "$c"; done | awk '$2==0{print $1}')
 [ -z "$nolim" ] && pass "every container has a memory limit" || fail "no memory limit: $nolim"

@@ -100,6 +100,13 @@ if [ -n "$(getv TS_AUTHKEY)" ]; then
   log "Joining the Suite CXO tailnet (TS_AUTHKEY set)"
   docker compose --profile remote up -d tailscale
 fi
+# The client's own model (LOCAL_LLM_URL at the bundled Ollama): start it and
+# pull the model once (a vLLM box elsewhere needs nothing here).
+if printf '%s' "$(getv LOCAL_LLM_URL)" | grep -q '//ollama:'; then
+  log "Starting the local model server and pulling $(getv LOCAL_LLM_MODEL)"
+  docker compose --profile local-llm up -d ollama
+  docker compose --profile local-llm exec -T ollama ollama pull "$(getv LOCAL_LLM_MODEL)"
+fi
 
 # 6. Wait for the health agent to report every check green.
 log "Waiting for health (up to 5 min)"
