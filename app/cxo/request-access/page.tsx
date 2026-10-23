@@ -9,7 +9,7 @@ import { cxoPageMeta } from '@/lib/seo'
 import { safeProspectId } from '@/lib/whopPixel'
 import { LeadSent, RememberLeadContact } from './LeadPixel'
 import SlotPicker from './SlotPicker'
-import { bookCxoSlot, easternLabel, fetchCxoSlots } from '@/lib/cxoBooking'
+import { bookCxoSlot, cxoCallIcs, easternLabel, fetchCxoSlots } from '@/lib/cxoBooking'
 import {
   CXO_REQUEST_NOTICE_TO,
   cxoCallBookedEmail,
@@ -153,7 +153,12 @@ export default async function CxoRequestAccessPage({ searchParams }: { searchPar
     if (error) console.error('[cxo request-access] booking save failed', error.message)
     const whenLabel = easternLabel(res.start)
     const [a, b] = await Promise.all([
-      sendEmail({ to: row.email, ...cxoCallBookedEmail({ name: row.name, whenLabel }), brand: 'cxo' }),
+      sendEmail({
+        to: row.email,
+        ...cxoCallBookedEmail({ name: row.name, whenLabel }),
+        attachments: [{ filename: 'suite-cxo-call.ics', content: Buffer.from(cxoCallIcs({ start: res.start, end: res.end, uid: leadId })), contentType: 'text/calendar; charset=utf-8' }],
+        brand: 'cxo',
+      }),
       sendEmail({
         to: CXO_REQUEST_NOTICE_TO,
         ...cxoRequestNoticeEmail({ kind: 'booked', name: row.name, email: row.email, company: row.company, notes: row.notes, whenLabel, calendarEvent: res.eventCreated, prospectId: leadId }),
@@ -177,7 +182,7 @@ export default async function CxoRequestAccessPage({ searchParams }: { searchPar
     const booked = bookingOf(row)
     if (booked) {
       return (
-        <CxAuthCard title="Your call is booked" sub="A calendar invite and a confirmation are on their way to your email.">
+        <CxAuthCard title="Your call is booked" sub="A confirmation with a calendar file is on its way to your email.">
           <div className="cx-booked">
             <strong>{easternLabel(booked.start)}</strong>
             <span>30 minute call with Suite CXO</span>

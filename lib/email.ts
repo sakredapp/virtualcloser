@@ -1024,20 +1024,20 @@ export function cxoRequestReceivedEmail(input: { name: string; pickUrl: string }
   }
 }
 
-/** To the prospect, once a time is booked. The calendar invite comes separately. */
+/** To the prospect, once a time is booked. The caller attaches the Suite CXO .ics (cxoCallIcs). */
 export function cxoCallBookedEmail(input: { name: string; whenLabel: string }) {
   const t = tokens('cxo')
   const first = input.name.split(' ')[0] || input.name
   const body = `
     <p style="margin:0 0 14px;">Hi ${escape(first)},</p>
     <p style="margin:0 0 14px;">Your ${escape(t.name)} call is booked for <strong>${escape(input.whenLabel)}</strong> (30 minutes).</p>
-    <p style="margin:0 0 14px;">A calendar invite with the call details is on its way to this address.</p>
+    <p style="margin:0 0 14px;">The calendar file attached to this email adds the call to your calendar.</p>
     <p style="margin:0;color:${t.muted};font-size:13px;">Need a different time? Reply to this email and we will move it.</p>
   `
   return {
     subject: `Your ${t.name} call: ${input.whenLabel}`,
     html: shell({ title: 'Your call is booked', preheader: `${input.whenLabel}, 30 minutes.`, body, brand: 'cxo', footer: `You're receiving this because you booked a call with ${escape(t.name)}.` }),
-    text: `Hi ${first},\n\nYour ${t.name} call is booked for ${input.whenLabel} (30 minutes). A calendar invite is on its way.\n\nNeed a different time? Reply to this email.\n\n— ${t.name}`,
+    text: `Hi ${first},\n\nYour ${t.name} call is booked for ${input.whenLabel} (30 minutes). The calendar file attached to this email adds it to your calendar.\n\nNeed a different time? Reply to this email.\n\n— ${t.name}`,
   }
 }
 

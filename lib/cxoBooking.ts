@@ -127,7 +127,9 @@ export async function bookCxoSlot(input: { start: string; offerRef: string | nul
     const res = await fetch(`${BOOKING_API}/api/booking/${CXO_BOOKING_SLUG}/book`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ start: input.start, name: input.name, email: input.email, ...(input.offerRef ? { offer_ref: input.offerRef } : {}) }),
+      // invite_lead: false keeps the event on the host's calendar only; the
+      // prospect's calendar entry is the Suite CXO .ics we email (cxoCallIcs).
+      body: JSON.stringify({ start: input.start, name: input.name, email: input.email, invite_lead: false, ...(input.offerRef ? { offer_ref: input.offerRef } : {}) }),
       cache: 'no-store',
       signal: AbortSignal.timeout(20000),
     })
@@ -145,4 +147,43 @@ export async function bookCxoSlot(input: { start: string; offerRef: string | nul
   } catch (err) {
     return { ok: false, taken: false, error: err instanceof Error ? err.message : String(err) }
   }
+}
+
+function icsStamp(d: Date): string {
+  return d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '')
+}
+function icsText(v: string): string {
+  return v.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n')
+}
+
+/**
+ * The prospect's calendar entry for a booked intro call: a Suite CXO .ics
+ * attached to the confirmation email from suitecxo.com. The VC booking API is
+ * told not to invite the prospect (invite_lead: false), so this is the only
+ * calendar entry they get and it carries only Suite CXO wording. Pure.
+ */
+export function cxoCallIcs(input: { start: string; end?: string | null; uid: string; now?: Date }): string {
+  const start = new Date(input.start)
+  const endMs = input.end ? new Date(input.end).getTime() : NaN
+  const end = Number.isFinite(endMs) && endMs > start.getTime() ? new Date(endMs) : new Date(start.getTime() + 30 * 60_000)
+  const lines = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Suite CXO//Intro call//EN',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+    'BEGIN:VEVENT',
+    `UID:${input.uid}@suitecxo.com`,
+    `DTSTAMP:${icsStamp(input.now ?? new Date())}`,
+    `DTSTART:${icsStamp(start)}`,
+    `DTEND:${icsStamp(end)}`,
+    `SUMMARY:${icsText('Suite CXO intro call')}`,
+    `DESCRIPTION:${icsText('Your 30 minute Suite CXO intro call. Need a different time? Reply to your confirmation email or write to support@suitecxo.com.')}`,
+    'ORGANIZER;CN=Suite CXO:mailto:support@suitecxo.com',
+    'STATUS:CONFIRMED',
+    'TRANSP:OPAQUE',
+    'END:VEVENT',
+    'END:VCALENDAR',
+  ]
+  return lines.join('\r\n') + '\r\n'
 }
