@@ -1687,6 +1687,7 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
 :root[data-brand='cxo'] body:has([data-app-shell]),
 :root[data-brand='cxo'] body:has(.cx-login),
 :root[data-brand='cxo'] body:has(.cx-onboard),
+:root[data-brand='cxo'] body:has(.cx-gate),
 :root[data-brand='cxo'] body:has(.cx-site) {
   /* Ground, surface, ink */
   --cx-ground: #F5F6F7;
@@ -1778,6 +1779,7 @@ details.calc-details[open] > summary .calc-expand-hint-label-closed { display: n
 :root[data-brand='cxo'][data-theme='dark'] body:has([data-app-shell]),
 :root[data-brand='cxo'][data-theme='dark'] body:has(.cx-login),
 :root[data-brand='cxo'][data-theme='dark'] body:has(.cx-onboard),
+:root[data-brand='cxo'][data-theme='dark'] body:has(.cx-gate),
 :root[data-brand='cxo'][data-theme='dark'] body:has(.cx-site) {
   color-scheme: dark;
   --cx-ground: #0E0F11;
@@ -3659,6 +3661,12 @@ a.cx-int-quiet { text-decoration: none; }
 }
 /* ── Agreement gate (app/dashboard/LiabilityGate.tsx) — full-screen sheet on
    phone, centred card on desktop; --cx-* tokens with neutral fallbacks. */
+:root[data-brand='cxo']:has(body .cx-gate) { background: var(--cx-ground, #F5F6F7); }
+:root[data-brand='cxo'][data-theme='dark']:has(body .cx-gate) { background: #0E0F11; }
+:root[data-brand='cxo'] body:has(.cx-gate) .cxo-shell {
+  width: 100%; margin: 0; border: 0; border-radius: 0; box-shadow: none;
+  background: var(--cx-ground); overflow: visible;
+}
 .cx-gate {
   position: fixed; inset: 0; z-index: 200; display: flex; align-items: center; justify-content: center; padding: 24px;
   background: rgba(10, 11, 13, 0.62); font-family: var(--cx-sans, Inter, system-ui, sans-serif);
