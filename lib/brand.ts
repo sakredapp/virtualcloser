@@ -198,9 +198,10 @@ export function listBrands(): BrandConfig[] {
  *     (suitecxo-git-<branch>-<team>.vercel.app, suitecxo-<hash>-<team>.vercel.app)
  *
  * Returns VirtualCloser when no domain matches, which is today's behavior on
- * localhost, any other vercel.app host, and the legacy VC root. Localhost
- * (and a bare IP) can be pointed at another brand with LOCAL_BRAND, nothing
- * else can.
+ * localhost, any other vercel.app host, and the legacy VC root. Localhost,
+ * a bare IP and a private-server name (ciao.acme.local, suitecxo.lan, a
+ * one-word name; on a box, any name) can be pointed at another brand with
+ * LOCAL_BRAND, nothing else can.
  */
 export function brandFromHost(host: string | null | undefined): BrandConfig {
   if (!host) return VIRTUAL_CLOSER
@@ -231,7 +232,24 @@ export function isCxoPreviewHost(host: string | null | undefined): boolean {
 }
 
 function isLocalHost(clean: string): boolean {
-  return clean === 'localhost' || clean.endsWith('.localhost') || /^\d+\.\d+\.\d+\.\d+$/.test(clean)
+  return clean === 'localhost' || clean.endsWith('.localhost') || /^\d+\.\d+\.\d+\.\d+$/.test(clean) || isNamedBoxHost(clean)
+}
+
+// Names only an office network can resolve (RFC 6762 .local, RFC 8375
+// .home.arpa, .internal, and the usual office suffixes), or a one-word name.
+const PRIVATE_NAME = /(^[a-z0-9-]+$)|\.(local|lan|internal|home\.arpa|intranet|corp|private)$/
+
+/**
+ * A private server reached by name instead of IP (selfhost/): ciao.acme.local,
+ * suitecxo.lan, `suitecxo`. On the box itself (SELFHOST=1) every name that is
+ * not one of our cloud domains counts, since a client may use its own internal
+ * DNS (ciao.acme.com). Routes like an IP: LOCAL_BRAND, no tenant subdomain.
+ */
+function isNamedBoxHost(clean: string): boolean {
+  if (!clean || clean === 'localhost' || clean.endsWith('.localhost')) return false
+  if (ALL_BRANDS.some((b) => clean === b.rootDomain || clean.endsWith(`.${b.rootDomain}`))) return false
+  if (PRIVATE_NAME.test(clean)) return true
+  return process.env.SELFHOST === '1' && !clean.endsWith('.vercel.app')
 }
 
 /**
@@ -242,6 +260,7 @@ export function isAnyGatewayHost(host: string | null | undefined): boolean {
   if (!host) return true
   const clean = host.split(':')[0].toLowerCase()
   if (clean === 'localhost' || /^\d+\.\d+\.\d+\.\d+$/.test(clean)) return true
+  if (isNamedBoxHost(clean)) return true
   if (clean.endsWith('.vercel.app')) return true
   for (const brand of ALL_BRANDS) {
     if (clean === brand.rootDomain || clean === `www.${brand.rootDomain}`) return true

@@ -45,6 +45,8 @@ body=$(curl -sk --max-time 20 --resolve "${SITE}:${HTTPS_PORT}:${BIND}" "https:/
 code=$(printf '%s' "$body" | tail -1)
 title=$(printf '%s' "$body" | grep -o '<title>[^<]*</title>' | head -1)
 [ "$code" = "200" ] && pass "app https://${SITE}/login over Caddy TLS -> 200 $title" || fail "app login -> $code"
+# The box routes to Suite CXO by IP, localhost or a name (ciao.<client>.local: lib/brand.ts).
+case "$title" in *"Suite CXO"*) pass "host ${SITE} routes to Suite CXO" ;; *) fail "host ${SITE} did not route to Suite CXO ($title)" ;; esac
 
 # 5. Health agent
 h=$(curl -s -o /tmp/health.json -w '%{http_code}' "http://127.0.0.1:${HEALTH_PORT}/health")
