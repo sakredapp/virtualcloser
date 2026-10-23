@@ -40,9 +40,9 @@ export function cxoQuote(people: number): CxoQuote {
  * Private server sizing calculator (/cxo/sizing): OUR fees per box size.
  *
  * Owner approved these build and care fees on 2026-10-20 (vault job
- * "Size a Private Server"). The private server is not
- * sold yet (owner 2026-10-20), so the page only quotes and ends in "Book a
- * call"; it takes no orders.
+ * "Size a Private Server"). Owner go 2026-10-22: the private build is sold as
+ * the second way to buy, delivered once the self-hosted package passes QA. The
+ * page only quotes and ends in "Book a call"; it takes no orders.
  *
  * Keys are the box sizes in lib/cxoSizing.ts. Hardware, rent and power are
  * NOT here: they are pass-through costs kept with their sources in that file.

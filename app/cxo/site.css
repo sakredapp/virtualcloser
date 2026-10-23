@@ -207,12 +207,14 @@
 .cxs-build-card h3.cxs-h { font-size: 24px; }
 .cxs-build-card .cxs-actions { margin-top: auto; padding-top: 24px; }
 
-/* Coming: the private server teaser. Small, dashed, clearly not for sale yet. */
+/* Own it: the private build block (owner go 2026-10-22). */
 .cxs-soon-section { padding: clamp(40px, 6vw, 64px) 0; }
-.cxs-soon { display: flex; flex-wrap: wrap; gap: 16px 32px; align-items: center; justify-content: space-between; border: 1px dashed var(--cx-line-strong); border-radius: 16px; padding: clamp(18px, 3vw, 28px); }
+.cxs-soon { display: flex; flex-wrap: wrap; gap: 16px 32px; align-items: center; justify-content: space-between; border: 1px solid var(--cx-line-strong); border-radius: 16px; padding: clamp(18px, 3vw, 28px); }
 .cxs-soon > div { flex: 1 1 320px; min-width: 0; max-width: 640px; }
 .cxs-soon .cxs-eyebrow { margin-bottom: 8px; }
 .cxs-soon p:not(.cxs-eyebrow) { margin: 8px 0 0; color: var(--cx-muted); font-size: 15px; }
+.cxs-plans-note { margin: 18px 0 0; color: var(--cx-muted); font-size: 15px; max-width: 720px; }
+.cxs-plans-note a { color: var(--cx-ink); text-decoration: underline; text-underline-offset: 3px; }
 
 /* Anchor links land below the sticky nav. */
 .cx-site [id] { scroll-margin-top: 72px; }

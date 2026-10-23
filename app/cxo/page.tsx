@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Suspense } from 'react'
 import { getBrand } from '@/lib/brand'
-import { CXO_BOOK_CALL_HREF, CXO_OVERAGE_BLOCK, CXO_OVERAGE_PRICE, CXO_PRICE_PER_PERSON, CXO_QUESTIONS_PER_PERSON, cxoCheckoutUrl } from '@/lib/cxoSite'
+import { CXO_BOOK_CALL_HREF, CXO_OVERAGE_BLOCK, CXO_OVERAGE_PRICE, CXO_PRICE_PER_PERSON, CXO_PRIVATE_BUILD_FEE, CXO_PRIVATE_CARE_FEE, CXO_QUESTIONS_PER_PERSON, cxoCheckoutUrl } from '@/lib/cxoSite'
 import { CXO_LOGO_URL, CXO_SITE_DESCRIPTION, CXO_SITE_ORIGIN, cxoJsonLd } from '@/lib/seo'
 import './site.css'
 
@@ -12,16 +12,19 @@ import './site.css'
 // Owner 2026-10-19: written for the person we email, the IT director or
 // compliance lead at a 50 to 500 person firm (the CEO signs later). Very
 // simple: the problem, how it works, why IT signs off, what it is for.
-// Owner 2026-10-20: we sell the cloud plan and custom builds. A private
-// server the client owns is NOT offered yet; it appears only as a short
-// "coming" teaser with an ask-us button.
+// Owner go 2026-10-22 (Nick's two-option framing 2026-10-20): two ways to
+// buy, the cloud plan or the private build on a server the client owns
+// (client buys the hardware, we build onto it and run it remotely). The
+// private build is delivered once the self-hosted package passes QA.
 // Copy rules for this page:
 // - One brand: "Ciao by Suite CXO". Never name the AI model or provider.
 // - "Every answer is checked", never "uncensored".
 // - Only TRUE claims: data is never used to train AI, role-based access,
-//   checked answers. Never "stays on your machine", "never leaves",
-//   "hardware you own" or "no outside AI company sees it".
-// - The only price is the cloud plan's per-person price.
+//   checked answers. "Stays on your own server" / "never leaves your
+//   building" ONLY about the private build (owner 2026-10-22), never the cloud.
+// - Prices: the cloud per-person price and the approved private build/care
+//   fees in lib/cxoSite.ts (owner 2026-10-20). Nothing else.
+// - "Cheaper over time" only for larger teams, with the small-team caveat.
 // - No government or "top 100 companies" lines, no blanket training claim.
 // - No Slack/Teams (not built), no texting, calling, ads or inbox offers.
 // - Never name or picture a client (NDA).
@@ -55,6 +58,10 @@ const JSON_LD = JSON.stringify(cxoJsonLd()).replace(/</g, '\\u003c')
 
 const BUILD_CALL_HREF = `${CXO_BOOK_CALL_HREF}?interest=build`
 const PRIVATE_CALL_HREF = `${CXO_BOOK_CALL_HREF}?interest=private`
+/** Smallest approved private-build fees (owner 2026-10-20), shown as "from" prices. */
+const PRIVATE_BUILD_FROM = CXO_PRIVATE_BUILD_FEE['office-small']
+const PRIVATE_CARE_FROM = CXO_PRIVATE_CARE_FEE['office-small']
+const money = (n: number) => (n >= 1000 ? `$${Math.round(n / 1000)}K` : `$${n}`)
 
 function Check() {
   return (
@@ -301,13 +308,15 @@ export default function CxoMarketingPage() {
         </div>
       </section>
 
-      {/* Pricing: the cloud plan first, custom builds quoted after a call. */}
+      {/* Pricing: two ways to buy (Nick 2026-10-20, owner go 2026-10-22). Our cloud per
+          person, or a private build on a server the client owns. The only private
+          prices allowed are the approved build and care fees in lib/cxoSite.ts. */}
       <section className="cxs-section" id="pricing">
         <div className="cxs-wrap">
           <div className="cxs-head">
             <p className="cxs-eyebrow">Pricing</p>
-            <h2 className="cxs-h">One price per person.</h2>
-            <p className="cxs-lede">The cloud plan, run by us. Add a custom build when you want one.</p>
+            <h2 className="cxs-h">Two ways to buy.</h2>
+            <p className="cxs-lede">Our cloud, billed per person. Or a private build on a server you own. Custom dashboards and tools can be added to either.</p>
           </div>
           <div className="cxs-plans">
             <div className="cxs-price-card" id="cloud">
@@ -347,35 +356,76 @@ export default function CxoMarketingPage() {
                 <CloudCta />
               </div>
             </div>
-            <div className="cxs-card cxs-build-card">
-              <p className="cxs-card-k">Custom builds</p>
-              <h3 className="cxs-h">Built around your company.</h3>
-              <p>
-                Dashboards and tools made for how your firm works: an exec dashboard, a weekly report, a tool for one job. We
-                quote after a short call.
-              </p>
+            <div className="cxs-price-card" id="private-build">
+              <p className="cxs-card-k">The private build</p>
+              <div className="cxs-price">
+                <b>from {money(PRIVATE_BUILD_FROM)}</b>
+                <span>to build, then from {money(PRIVATE_CARE_FROM)} a month to look after it</span>
+              </div>
+              <p className="cxs-price-sub">You buy the hardware. We spec it, build onto it and run it for you.</p>
+              <ul className="cxs-includes">
+                <li>
+                  <Check />
+                  <span>
+                    <strong>Your data stays on your own server.</strong> Questions, answers and files never leave your building.
+                  </span>
+                </li>
+                <li>
+                  <Check />
+                  <span>
+                    <strong>Once it&rsquo;s yours, it&rsquo;s yours.</strong> Nobody can reprice it, rewrite it or switch it off later.
+                  </span>
+                </li>
+                <li>
+                  <Check />
+                  <span>
+                    <strong>No per-person AI bills.</strong> One build fee, one care fee, sized to your team.
+                  </span>
+                </li>
+                <li>
+                  <Check />
+                  <span>
+                    <strong>Same {name}, your dashboards,</strong> built for how your firm works.
+                  </span>
+                </li>
+              </ul>
               <div className="cxs-actions">
-                <Link className="cx-btn cx-btn-ghost cxs-btn" href={BUILD_CALL_HREF}>
-                  Ask about a custom build
+                <Link className="cx-btn cxs-btn" href={PRIVATE_CALL_HREF}>
+                  Book a call about the private build
+                </Link>
+                <Link className="cx-btn cx-btn-ghost cxs-btn" href="/cxo/sizing">
+                  What size would we need?
                 </Link>
               </div>
             </div>
           </div>
+          <p className="cxs-plans-note">
+            Custom builds on either plan: an exec dashboard, a weekly report, a tool for one job. We quote after a short call.{' '}
+            <Link href={BUILD_CALL_HREF}>Ask about a custom build</Link>
+          </p>
         </div>
       </section>
 
-      {/* Coming (owner 2026-10-20): a private server the client owns is not
-          offered yet. Teaser only: no dates, no prices. Other sites link to
-          /#private, so the anchor lives here. */}
+      {/* Own it (Nick 2026-10-20, owner go 2026-10-22): the private build in the
+          client's words. Other sites link to /#private, so the anchor lives here.
+          Guardrails: no "government will restrict AI" as fact, cheaper only with
+          its condition, no prices beyond lib/cxoSite.ts. */}
       <section className="cxs-section cxs-soon-section" id="private">
         <div className="cxs-wrap">
           <div className="cxs-soon">
             <div>
-              <p className="cxs-eyebrow">Coming</p>
-              <h3 className="cxs-h">A private server you own.</h3>
+              <p className="cxs-eyebrow">Own it</p>
+              <h3 className="cxs-h">Once it&rsquo;s yours, it&rsquo;s yours.</h3>
               <p>
-                Later, {name} will also run on a machine in your office, yours to keep. It isn&rsquo;t available yet. Ask us
-                and we&rsquo;ll tell you when it is.
+                The private build puts {name} on a server your company owns. You buy the hardware we spec and ship it to
+                us. We build {name} and your dashboards onto it, ship it back, and look after it from here. Your data
+                stays on your own server.
+              </p>
+              <p>
+                No vendor can reprice it, rewrite it or switch it off later. Whatever the rules around cloud AI become,
+                yours is already in your building, under your control. For larger teams it also costs less than
+                per-person AI subscriptions over time. For a small team the cloud plan is usually the better buy, and
+                we&rsquo;ll say so on the call.
               </p>
             </div>
             <div className="cxs-soon-links">
@@ -383,7 +433,7 @@ export default function CxoMarketingPage() {
                 What size would we need?
               </Link>
               <Link className="cx-btn cx-btn-ghost cxs-btn" href={PRIVATE_CALL_HREF}>
-                Ask about the private server
+                Book a call about the private build
               </Link>
             </div>
           </div>
@@ -402,9 +452,10 @@ export default function CxoMarketingPage() {
               <summary>Where does our data go?</summary>
               <div>
                 <p>
-                  {name} runs on our cloud. To write an answer, your question is sent to the AI providers we use, with data
-                  collection turned off. Your data is never used to train AI.
+                  On the cloud plan, {name} runs on our cloud. To write an answer, your question is sent to the AI providers
+                  we use, with data collection turned off. Your data is never used to train AI.
                 </p>
+                <p>On the private build, {name} runs on your own server and your data stays there.</p>
               </div>
             </details>
             <details>
@@ -435,8 +486,18 @@ export default function CxoMarketingPage() {
               <summary>Can we run it on our own server?</summary>
               <div>
                 <p>
-                  Not yet. A private server you own is coming. <Link href={PRIVATE_CALL_HREF}>Ask us</Link> and we&rsquo;ll tell
-                  you when it&rsquo;s ready.
+                  Yes. That is the private build: you buy the hardware we spec, we build {name} onto it and look after it
+                  for you. Start with the <Link href="/cxo/sizing">size calculator</Link>, then{' '}
+                  <Link href={PRIVATE_CALL_HREF}>book a call</Link>.
+                </p>
+              </div>
+            </details>
+            <details>
+              <summary>What if the company behind the AI shuts down?</summary>
+              <div>
+                <p>
+                  On the private build, nothing changes for you. The server is yours and keeps working. Nobody can take
+                  it back, reprice it or switch it off.
                 </p>
               </div>
             </details>
