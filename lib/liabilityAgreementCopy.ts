@@ -443,6 +443,23 @@ export function renderAgreementHtml(args: {
 </html>`
 }
 
+/**
+ * The inside of a standalone agreement document (renderAgreementHtml), for
+ * embedding in a page: no doctype, <html>, <head>/<title> or <body>. A stray
+ * <body style="..."> inside server-rendered markup is merged onto the page's
+ * own <body> by the HTML parser, which framed the in-app sign screen at 740px
+ * and painted it white (QA 2026-10-21). A fragment passes through unchanged.
+ */
+export function embeddableAgreementHtml(html: string): string {
+  const m = /<body\b[^>]*>([\s\S]*?)<\/body\s*>/i.exec(html)
+  if (m) return m[1].trim()
+  return html
+    .replace(/<!doctype[^>]*>/gi, '')
+    .replace(/<head\b[\s\S]*?<\/head\s*>/gi, '')
+    .replace(/<\/?(?:html|body)\b[^>]*>/gi, '')
+    .trim()
+}
+
 function renderBodyHtml(body: string): string {
   return body
     .split('\n\n')

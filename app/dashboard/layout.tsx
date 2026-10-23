@@ -1,6 +1,6 @@
 import DashboardShell from '@/app/components/DashboardShell'
 import { buildDashboardTabs, type DashboardNavData } from './dashboardTabs'
-import { getAgreement, renderAgreementHtml } from '@/lib/liabilityAgreementCopy'
+import { embeddableAgreementHtml, getAgreement, renderAgreementHtml } from '@/lib/liabilityAgreementCopy'
 import { checkAgreement } from '@/lib/agreementWall'
 import type { BrandKey } from '@/lib/brand'
 import LiabilityGate from './LiabilityGate'
@@ -139,7 +139,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // Inside the store app's web view the app's tab bar is already on screen.
   const inApp = isNativeAppUA((await headers()).get('user-agent'))
   const agreement = getAgreement(brand, { titleName: agreementTitleName })
-  const html = renderAgreementHtml({ workspaceLabel, brand, titleName: agreementTitleName })
+  // The inside of the document only: a server-rendered <body style> would be
+  // merged onto the page's own <body> (sideways scroll, white in dark mode).
+  const html = embeddableAgreementHtml(renderAgreementHtml({ workspaceLabel, brand, titleName: agreementTitleName }))
 
   // Not signed (or the check failed): the sign screen and nothing else. The
   // dashboard is never rendered underneath, so removing the overlay shows nothing.
