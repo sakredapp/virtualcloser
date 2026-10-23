@@ -1,0 +1,28 @@
+[package]
+name = "suitecxo-desktop"
+version = "1.0.0"
+description = "Mac App Store shell for Suite CXO and Pinnacle"
+authors = ["Sakred Health"]
+edition = "2021"
+rust-version = "1.77.2"
+
+# ONE shell, two store apps. The edition (name, bundle id, icon, start URL)
+# lives in tauri.<edition>.conf.json, merged over tauri.conf.json at build time
+# by scripts/appstore.sh.
+
+[lib]
+name = "suitecxo_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+# Opens every non-suitecxo.com link in the user's default browser.
+tauri-plugin-opener = "2"
+# Remembers window size/position between launches.
+tauri-plugin-window-state = "2"
+
+[features]
+custom-protocol = ["tauri/custom-protocol"]
