@@ -119,3 +119,4 @@ whop_billing_migration.sql
 cxo_ciao_answer_check.sql
 cxo_ciao_chat_folders.sql
 # baseline 2026-10-22: new files go below this line
+cxo_ciao_chat_memory.sql

@@ -13,7 +13,13 @@
  *    with no earlier turns still claims one.
  */
 
-export function conversationStateLine(earlierTurns: number): string {
+export function conversationStateLine(earlierTurns: number, summarized = false): string {
+  if (summarized) {
+    return [
+      `CONVERSATION STATE: this chat has older messages, given to you as the summary block below, and then the ${earlierTurns} newest message${earlierTurns === 1 ? '' : 's'} above, word for word. Nothing else was said in it.`,
+      'Never describe a conversation, topic or request that is in neither. Facts saved about them are things you know, never things you discussed.',
+    ].join(' ')
+  }
   if (earlierTurns <= 0) {
     return [
       'CONVERSATION STATE: this is a brand-new chat with no earlier turns. The user message below is the first thing said in it.',
