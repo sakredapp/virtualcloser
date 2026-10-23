@@ -26,9 +26,8 @@ export default async function PrivacyPage() {
       <header className="hero">
         <h1>Privacy Policy</h1>
         <p className="sub">Last updated: April 2026</p>
-        <p className="nav">
+        <p className="nav nav-links">
           <Link href="/">← Home</Link>
-          <span>·</span>
           <Link href="/terms">Terms of Service</Link>
         </p>
       </header>

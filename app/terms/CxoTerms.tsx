@@ -15,9 +15,8 @@ export function CxoTerms({ brand }: { brand: BrandConfig }) {
       <header className="hero">
         <h1>Terms of Service</h1>
         <p className="sub">Effective {CXO_LEGAL_EFFECTIVE_DATE}</p>
-        <p className="nav">
+        <p className="nav nav-links">
           <Link href="/">← Home</Link>
-          <span>·</span>
           <Link href="/privacy">Privacy Policy</Link>
         </p>
       </header>

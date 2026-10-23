@@ -31,11 +31,9 @@ export default async function SupportPage() {
       <header className="hero">
         <h1>Support</h1>
         <p className="sub">How can we help?</p>
-        <p className="nav">
+        <p className="nav nav-links">
           <Link href="/">← Home</Link>
-          <span>·</span>
           <Link href="/privacy">Privacy Policy</Link>
-          <span>·</span>
           <Link href="/terms">Terms of Service</Link>
         </p>
       </header>
