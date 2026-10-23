@@ -447,6 +447,7 @@ export const REGISTRY_EXEMPT: Record<string, string> = {
   'POST /api/admin/*': 'Our staff console.',
   'DELETE /api/admin/*': 'Our staff console.',
   'POST /api/ops/onboarding/actions': 'Our staff onboarding API (Bearer secret).',
+  'POST /api/ops/private-server/report': 'Private-server fleet check-in from a client box (licence bearer), not a user setting.',
   'POST /api/demo/voice-session': 'Public demo, no account.',
   // Session plumbing, not settings.
   'POST /api/native/session': 'Signs the phone app in.',
