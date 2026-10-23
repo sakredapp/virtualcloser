@@ -55,6 +55,7 @@ export function cxoPixelPathAllowed(pathname: string | null | undefined): boolea
 
 /** May the pixel be on this response at all? Public host, a browser (not the store app). */
 export function cxoPixelHostAllowed(host: string | null | undefined, userAgent: string | null | undefined): boolean {
+  if (process.env.SELFHOST === '1') return false
   return isCxoMarketingHost(host) && !isNativeAppUA(userAgent)
 }
 

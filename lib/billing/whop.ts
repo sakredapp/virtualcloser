@@ -100,6 +100,9 @@ async function whopRequest<T>(
   body?: Record<string, unknown>,
   idempotencyKey?: string,
 ): Promise<T> {
+  // A private server (selfhost/) is licensed by a signed file, never billed
+  // through Whop: no Whop call ever leaves a client's box.
+  if (process.env.SELFHOST === '1') throw new WhopApiError(503, 'Whop is off on a private server')
   const key = process.env.WHOP_API_KEY
   if (!key) throw new WhopApiError(503, 'WHOP_API_KEY is not configured')
   const res = await fetch(`${WHOP_API}/${path}`, {

@@ -1,0 +1,47 @@
+# Issue a Suite CXO private-server licence (selfhost/licence/). Run by hand:
+#   gh workflow run issue-licence.yml -f client_id=acme -f client_name="Acme Corp" \
+#     -f box_id=acme-01 -f seats=25 -f expires=2027-10-31
+# then  gh run download <run id> -n licence-<box_id>  ->  licence.key for the box
+# (selfhost/box-licence/licence.key). The signing key is the repo secret
+# SUITECXO_LICENCE_SIGNING_KEY; it never leaves this job.
+name: Issue a private-server licence
+
+on:
+  workflow_dispatch:
+    inputs:
+      client_id: { description: "Client id (short, e.g. acme)", required: true }
+      client_name: { description: "Client company name", required: true }
+      box_id: { description: "The box's BOX_ID", required: true }
+      seats: { description: "Seats the client paid for", required: true }
+      expires: { description: "Good through (YYYY-MM-DD)", required: true }
+
+permissions:
+  contents: read
+
+jobs:
+  issue:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with: { sparse-checkout: selfhost/licence }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Sign
+        env:
+          SUITECXO_LICENCE_SIGNING_KEY: ${{ secrets.SUITECXO_LICENCE_SIGNING_KEY }}
+          CLIENT_ID: ${{ inputs.client_id }}
+          CLIENT_NAME: ${{ inputs.client_name }}
+          BOX_ID: ${{ inputs.box_id }}
+          SEATS: ${{ inputs.seats }}
+          EXPIRES: ${{ inputs.expires }}
+        run: |
+          mkdir -p out
+          node selfhost/licence/issue.mjs --client-id "$CLIENT_ID" --client-name "$CLIENT_NAME" \
+            --box-id "$BOX_ID" --seats "$SEATS" --expires "$EXPIRES" --out out/licence.key
+          BOX_ID="$BOX_ID" LICENCE_FILE=out/licence.key node selfhost/licence/check.mjs verify >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: licence-${{ inputs.box_id }}
+          path: out/licence.key
+          retention-days: 7

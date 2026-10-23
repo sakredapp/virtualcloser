@@ -11,6 +11,7 @@ COPY tsconfig.json ./
 COPY lib ./lib
 COPY types ./types
 COPY hetzner-worker ./hetzner-worker
+COPY selfhost/licence/licence.mjs selfhost/licence/check.mjs /selfhost-licence/
 RUN useradd -r -u 1001 suitecxo
 USER suitecxo
-CMD ["npx", "tsx", "hetzner-worker/index.ts"]
+CMD ["node", "/selfhost-licence/check.mjs", "worker", "--", "npx", "tsx", "hetzner-worker/index.ts"]
