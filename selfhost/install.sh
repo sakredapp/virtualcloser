@@ -67,7 +67,7 @@ for k in POSTGRES_PASSWORD PGRST_AUTHENTICATOR_PASSWORD JWT_SECRET SESSION_SECRE
   [ -n "$(getv "$k")" ] || setv "$k" "$(rand 32)"
 done
 [ -n "$(getv SUPABASE_SERVICE_ROLE_KEY)" ] || setv SUPABASE_SERVICE_ROLE_KEY "$(sign_service_jwt "$(getv JWT_SECRET)")"
-mkdir -p "$(getv BACKUP_DIR)"
+mkdir -p "$(getv BACKUP_DIR)" box-licence
 [ "$ENV_ONLY" = 1 ] && { log ".env written (secrets not shown). Edit it, then run install.sh again."; exit 0; }
 
 # 3. Build the images (app build is the long step: ~5-10 min).
@@ -81,6 +81,14 @@ if [ -z "$(getv ADMIN_PASSWORD_HASH)" ]; then
   setv ADMIN_PASSWORD_HASH "$hash"
   umask 077; printf '%s\n' "$pw" > .admin-password; unset pw
   echo "Admin password written to $HERE/.admin-password (root-only). Put it on the build sheet, then delete the file."
+fi
+
+# 4b. Licence: the signed file from Suite CXO goes at selfhost/box-licence/licence.key.
+# Without a valid one the app shows a "no valid licence" page instead of starting.
+log "Checking the licence"
+if ! docker run --rm -v "$HERE/box-licence:/licence:ro" -e BOX_ID="$(getv BOX_ID)" suitecxo-worker:local \
+     node /selfhost-licence/check.mjs verify; then
+  echo "No valid licence for box $(getv BOX_ID) yet. Put it at $HERE/box-licence/licence.key; the app picks it up within 5 minutes."
 fi
 
 # 5. Start. The migrate service applies supabase/*.sql before PostgREST starts.

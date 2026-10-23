@@ -43,6 +43,7 @@ x-app-env: &app-env
   SMTP_REPLY_TO: ${SMTP_REPLY_TO:-}
   GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
   GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+  LICENCE_FILE: /licence/licence.key
   # Cloud-only pieces stay off on a box: Whop billing, Resend/SES, Fathom,
   # Airtable (Pinnacle), Telegram, Tavily web search, Sakred/Vercel sync. They
   # are simply not set here; add one to .env only when the client opts in.
@@ -114,6 +115,9 @@ services:
     depends_on:
       postgrest: { condition: service_started }
     environment: *app-env
+    volumes:
+      # The signed licence file (selfhost/licence/). Read at boot and hourly.
+      - ./box-licence:/licence:ro
     deploy:
       resources:
         limits: { cpus: "2", memory: 2g }
@@ -129,6 +133,8 @@ services:
     environment:
       <<: *app-env
       CAMPAIGN_TICK_MS: ${WORKER_TICK_MS:-30000}
+    volumes:
+      - ./box-licence:/licence:ro
     deploy:
       resources:
         limits: { cpus: "1", memory: 1g }

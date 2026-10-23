@@ -22,8 +22,10 @@ RUN useradd -r -u 1001 suitecxo
 COPY --from=build --chown=suitecxo /src/.next/standalone ./
 COPY --from=build --chown=suitecxo /src/.next/static ./.next/static
 COPY --from=build --chown=suitecxo /src/public ./public
+# The licence boot gate (offline): no valid licence at /licence/licence.key = no app.
+COPY selfhost/licence/licence.mjs selfhost/licence/check.mjs /selfhost-licence/
 USER suitecxo
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:3000/login',{headers:{host:'localhost'}}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
-CMD ["node", "server.js"]
+CMD ["node", "/selfhost-licence/check.mjs", "app", "--", "node", "server.js"]

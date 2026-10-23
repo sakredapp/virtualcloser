@@ -27,7 +27,7 @@ export type SmtpConfig = {
 }
 
 /** The box's SMTP settings, or null when mail should not go through SMTP. */
-export function smtpConfig(env: NodeJS.ProcessEnv = process.env, fallbackName = 'Suite CXO'): SmtpConfig | null {
+export function smtpConfig(env: Record<string, string | undefined> = process.env, fallbackName = 'Suite CXO'): SmtpConfig | null {
   if (env.SELFHOST !== '1') return null
   const host = env.SMTP_HOST?.trim()
   if (!host) return null

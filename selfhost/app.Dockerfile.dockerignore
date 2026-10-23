@@ -11,3 +11,5 @@ voice-agent-prompts
 __tests__
 **/*.log
 selfhost/data
+selfhost/box-licence
+selfhost/.admin-password

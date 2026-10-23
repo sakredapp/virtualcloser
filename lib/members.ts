@@ -2,6 +2,7 @@ import { supabase } from './supabase'
 import { slugify } from './random'
 import type { Member, MemberRole } from '@/types'
 import { isSeatRole } from './cxoUsageShared'
+import { licenceSeatCap } from './selfhostLicence'
 
 /**
  * Members = humans inside an account. Every account (rep) has exactly one
@@ -214,6 +215,18 @@ export async function assertSeatAvailable(repId: string): Promise<void> {
     throw new Error(
       `Seat cap reached (${used}/${max}). Contact your account manager to add more seats.`,
     )
+  }
+  // A private server's licence caps seats across the whole box.
+  const licensed = licenceSeatCap()
+  if (licensed !== null) {
+    const { data, error } = await supabase.from('members').select('id, role').eq('is_active', true)
+    if (error) throw error
+    const boxUsed = ((data ?? []) as Array<{ role: string }>).filter((r) => isSeatRole(r.role)).length
+    if (boxUsed >= licensed) {
+      throw new Error(
+        `This server's licence covers ${licensed} seats and all are in use. Contact Suite CXO (support@suitecxo.com) to add seats.`,
+      )
+    }
   }
 }
 

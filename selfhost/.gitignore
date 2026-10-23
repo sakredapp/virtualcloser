@@ -1,0 +1,5 @@
+# Box-local files: never committed.
+.env
+.admin-password
+data/
+box-licence/

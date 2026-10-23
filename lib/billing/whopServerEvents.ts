@@ -73,6 +73,7 @@ export async function sendCxoRegistrationEvent(
   input: CxoRegistrationInput,
   fetchImpl: typeof fetch = fetch,
 ): Promise<{ ok: boolean; status?: number; skipped?: string }> {
+  if (process.env.SELFHOST === '1') return { ok: false, skipped: 'selfhost' }
   const key = process.env.WHOP_API_KEY
   if (!key) return { ok: false, skipped: 'no_key' }
   try {

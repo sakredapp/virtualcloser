@@ -89,7 +89,29 @@ fi
 r=$(curl -sk --max-time 20 --resolve "${SITE}:${HTTPS_PORT}:${BIND}" -X POST -d '{}' "https://${SITE}:${HTTPS_PORT}/api/cron/selfhost-mail-test" -o /dev/null -w '%{http_code}')
 [ "$r" = "401" ] && pass "smtp test route refuses a call without CRON_SECRET (401)" || fail "smtp test route without secret -> $r"
 
-# 10. Limits are set (so the box keeps headroom)
+# 10. Licence (selfhost/licence/): the app and worker started on a valid signed
+# licence; an expired one keeps the app down behind a 503 page; a changed one is refused.
+BOX=$(getv BOX_ID)
+for svc in app worker; do
+  l=$(dc logs "$svc" 2>/dev/null | grep -o '\[licence\] ok: .*' | tail -1)
+  [ -n "$l" ] && pass "licence $svc: ${l#\[licence\] }" || fail "licence $svc: no '[licence] ok' in its log"
+done
+docker rm -f scxo-licence-test >/dev/null 2>&1
+docker run -d --name scxo-licence-test -e BOX_ID="$BOX" -e LICENCE_FILE=/licence/licence.key \
+  -v "$PWD/licence/fixtures/expired.key:/licence/licence.key:ro" suitecxo-app:local >/dev/null
+sleep 4
+code=$(docker exec scxo-licence-test node -e "fetch('http://127.0.0.1:3000/login').then(r=>console.log(r.status+' '+r.headers.get('x-suitecxo-licence'))).catch(e=>console.log('ERR '+e.message))")
+refused=$(docker logs scxo-licence-test 2>&1 | grep -c 'REFUSED: licence expired on 2000-01-31')
+started=$(docker logs scxo-licence-test 2>&1 | grep -ci 'ready in\|next.js')
+docker rm -f scxo-licence-test >/dev/null 2>&1
+[ "$code" = "503 expired" ] && [ "$refused" -ge 1 ] && [ "$started" = "0" ] \
+  && pass "licence expired: app not started, page answers 503 (expired), log says why" \
+  || fail "licence expired: got '$code', refused=$refused, app started=$started"
+out=$(docker run --rm -e BOX_ID="$BOX" -v "$PWD/licence/fixtures/tampered.key:/licence/licence.key:ro" suitecxo-worker:local node /selfhost-licence/check.mjs verify; echo "exit=$?")
+printf '%s' "$out" | grep -q 'signature does not match' && printf '%s' "$out" | grep -q 'exit=3' \
+  && pass "licence tampered: refused (signature does not match)" || fail "licence tampered: $out"
+
+# 11. Limits are set (so the box keeps headroom)
 nolim=$(for c in $(dc ps -q); do docker inspect -f '{{.Name}} {{.HostConfig.Memory}}' "$c"; done | awk '$2==0{print $1}')
 [ -z "$nolim" ] && pass "every container has a memory limit" || fail "no memory limit: $nolim"
 
