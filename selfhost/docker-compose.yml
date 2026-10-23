@@ -256,6 +256,9 @@ services:
       TS_USERSPACE: "false"
     volumes:
       - tailscale-state:/var/lib/tailscale
+    deploy:
+      resources:
+        limits: { cpus: "0.25", memory: 128m }
 
 volumes:
   db-data:
