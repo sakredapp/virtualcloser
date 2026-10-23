@@ -22,7 +22,7 @@ const INTERESTS = [
   { id: 'cloud', label: 'The cloud plan' },
   { id: 'build', label: 'A custom build' },
   { id: 'unsure', label: 'Not sure yet' },
-  { id: 'private', label: 'Private server (coming, join the list)' },
+  { id: 'private', label: 'Private build (on a server you own)' },
 ] as const
 
 /**

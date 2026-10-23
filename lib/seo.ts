@@ -11,7 +11,7 @@
  * Pure and edge-safe: no imports with side effects. Used by middleware,
  * app/robots.ts, app/sitemap.ts, app/llms.txt and the tests.
  */
-import { CXO_BOOK_CALL_HREF, CXO_OVERAGE_BLOCK, CXO_OVERAGE_PRICE, CXO_PRICE_PER_PERSON, CXO_QUESTIONS_PER_PERSON } from './cxoSite'
+import { CXO_BOOK_CALL_HREF, CXO_OVERAGE_BLOCK, CXO_OVERAGE_PRICE, CXO_PRICE_PER_PERSON, CXO_PRIVATE_BUILD_FEE, CXO_PRIVATE_CARE_FEE, CXO_QUESTIONS_PER_PERSON } from './cxoSite'
 import { ASSISTANT_NAME } from './assistantName'
 
 /** The one canonical origin. suitecxo.com 307s to www, so www is canonical. */
@@ -211,7 +211,7 @@ ${n} by ${CXO_SITE_NAME} gives your team an AI you can say yes to. Staff already
 
 ## Where the data goes
 
-${n} runs on our cloud. To write an answer, a question is sent to the AI providers we use, with data collection turned off. Your data is never used to train AI.
+On the cloud plan, ${n} runs on our cloud. To write an answer, a question is sent to the AI providers we use, with data collection turned off. Your data is never used to train AI. On the private build, ${n} runs on the client's own server and the data stays there.
 
 ## What teams use it for
 
@@ -221,19 +221,17 @@ ${n} runs on our cloud. To write an answer, a question is sent to the AI provide
 - Meeting prep and notes: a brief before each meeting, the to-dos after.
 - To-dos from meetings and requests, with a heads-up before they are due.
 
-## Pricing
+## Pricing: two ways to buy
 
-The ${CXO_SITE_NAME} cloud plan, run by us:
+1. The ${CXO_SITE_NAME} cloud plan, run by us:
 
 - $${CXO_PRICE_PER_PERSON} per person, per month. Exec assistants are free.
 - ${CXO_QUESTIONS_PER_PERSON} questions a month per person, added to one shared pool. Over the pool, $${CXO_OVERAGE_PRICE} per ${CXO_OVERAGE_BLOCK} more questions; nothing stops working.
 - Cancel any time. It ends at the end of the billing period.
 
-Custom builds: dashboards and tools made for how your firm works (an exec dashboard, a weekly report, a tool for one job). We quote after a short call.
+2. The private build, on a server you own: you buy the hardware we spec and ship it to us; we build ${n} and your dashboards onto it, ship it back and look after it remotely. From $${CXO_PRIVATE_BUILD_FEE['office-small'].toLocaleString('en-US')} to build, then from $${CXO_PRIVATE_CARE_FEE['office-small'].toLocaleString('en-US')} a month for care, sized to the team (size calculator: ${o}/cxo/sizing). Your data stays on your own server. Once it is yours, it is yours: nobody can reprice it, rewrite it or switch it off. For larger teams it costs less than per-person AI subscriptions over time; for a small team the cloud plan is usually the better buy.
 
-## Coming
-
-A private server you own: ${n} running on a machine in your office, yours to keep. It is not available yet; ask us and we will tell you when it is.
+Custom builds on either plan: dashboards and tools made for how your firm works (an exec dashboard, a weekly report, a tool for one job). We quote after a short call.
 `
 }
 

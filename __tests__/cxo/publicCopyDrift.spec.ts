@@ -6,8 +6,10 @@
  *   - no boards, no customer email inbox / Gmail (only "an edition set up by
  *     agreement", as /privacy says);
  *   - no sales tools or targets, and the public demo is not an insurance agency;
- *   - private server = "coming"; the only private-server prices are our build
- *     and care fees (no hardware, running, rent, power or battery estimates).
+ *   - the private build is the second way to buy (owner go 2026-10-22), never
+ *     "coming"/"not available"; "stays on your own server" only about it; the
+ *     only private prices are our build and care fees (no hardware, running,
+ *     rent, power or battery estimates); no government or "top 100" lines.
  */
 import { describe, expect, it } from 'vitest'
 import fs from 'node:fs'
@@ -56,7 +58,24 @@ describe('sizing page', () => {
     expect(calc).toContain('p.care')
     const page = read('app/cxo/sizing/page.tsx')
     expect(page).not.toMatch(/cost(s)? to buy\s+and run|buy and run/i)
-    expect(page).toMatch(/coming/i)
+    expect(jsx('app/cxo/sizing/page.tsx')).not.toMatch(/coming|isn&rsquo;t available|not available/i)
+  })
+})
+
+describe('home page private build (owner go 2026-10-22)', () => {
+  it('sells cloud and private as the two ways to buy, with only the approved fees', () => {
+    const home = jsx('app/cxo/page.tsx').replace(/\{\/\*[\s\S]*?\*\/\}/g, '') // drop JSX comments
+    expect(home).toMatch(/Two ways to buy/)
+    expect(home).toMatch(/id="private"/)
+    expect(home).toMatch(/Once it&rsquo;s yours, it&rsquo;s yours/)
+    expect(home).toMatch(/data\s+stays on your own server/i)
+    expect(home).not.toMatch(/coming|isn&rsquo;t available|not available yet|government|top 100/i)
+    // Prices come from lib/cxoSite.ts constants, never typed into the page.
+    expect(home).toMatch(/money\(PRIVATE_BUILD_FROM\)/)
+    expect(home).toMatch(/money\(PRIVATE_CARE_FROM\)/)
+    expect(home).not.toMatch(/\$\d{2},?\d{3}|\$\d+K/)
+    // "Cheaper" only with its condition.
+    expect(home).toMatch(/For a small team the cloud plan is usually the better buy/)
   })
 })
 
@@ -109,9 +128,12 @@ describe('demo adoption data', () => {
 })
 
 describe('search and AI files', () => {
-  it('never say chief of staff, never offer an inbox, private server only as coming', () => {
+  it('never say chief of staff, never offer an inbox, private build as the second way to buy', () => {
     const t = cxoLlmsTxt() + CXO_SITE_DESCRIPTION
     expect(t).not.toMatch(/chief of staff|chief ai officer|inbox|gmail|\bboards\b/i)
-    expect(t).toMatch(/## Coming\s+A private server you own/)
+    expect(t).toMatch(/## Pricing: two ways to buy/)
+    expect(t).toMatch(/The private build, on a server you own/)
+    expect(t).toMatch(/From \$15,000 to build, then from \$500 a month/)
+    expect(t).not.toMatch(/coming|not available|government|top 100/i)
   })
 })

@@ -10,8 +10,9 @@ import '../site.css'
 // big a server they need, so this says "you need this size, it costs this
 // much". The formula is lib/cxoSizing.ts, the same one the vault job
 // "Size a Private Server" uses.
-// The private server is NOT sold yet (owner 2026-10-20): no checkout, no
-// order button, only "Book a call". Copy rules are the home page's: never
+// Owner go 2026-10-22: the private build is sold as the second way to buy
+// (delivery once the self-hosted package passes QA). Still no checkout and no
+// order button here, only "Book a call". Copy rules are the home page's: never
 // name a model, a model maker, a chip maker or a card; plain sizes only.
 // Prices: ONLY our build and care fees (lib/cxoSite.ts, owner approved
 // 2026-10-20). Hardware, rent, power and battery are pass-through costs quoted
@@ -20,7 +21,7 @@ import '../site.css'
 export const metadata: Metadata = cxoPageMeta(
   '/cxo/sizing',
   'Private server sizing',
-  'How big a private AI server your firm would need, and our build and care fees for it. Coming soon.',
+  'How big a private AI server your firm would need, and our build and care fees for it.',
 )
 
 const SITE_NAME = 'Suite CXO'
@@ -51,11 +52,11 @@ export default function CxoSizingPage() {
       <section className="cxs-hero cxs-calc-hero">
         <div className="cxs-wrap">
           <div className="cxs-head">
-            <p className="cxs-eyebrow">Private server · coming</p>
+            <p className="cxs-eyebrow">The private build</p>
             <h1 className="cxs-h">How big a private server would you need?</h1>
             <p className="cxs-lede">
               Tell us about your team. We&rsquo;ll show the size of server {name} would need and our fee to build it and
-              look after it. It isn&rsquo;t available yet; this is for planning.
+              look after it. Hardware is yours to buy; we quote it on the call.
             </p>
           </div>
           <SizingCalculator bookHref={BOOK_HREF} />
