@@ -27,6 +27,7 @@ import { provisionFromOnboardingPayment } from '@/lib/billing/provisionOnboardin
 import { CXO_WHOP_KINDS, verifyWhopWebhook, whopMoneyToCents } from '@/lib/billing/whop'
 import { cxoMetadata, isCxoObject, obj, str, type Obj } from '@/lib/billing/whopEvents'
 import { sendCxoPurchase } from '@/lib/billing/metaPurchase'
+import { alertUnmatched, ensurePublicBuyerRep } from '@/lib/billing/publicBuyer'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -50,10 +51,21 @@ async function setRep(repId: string, patch: Obj): Promise<void> {
 async function onPaymentSucceeded(data: Obj): Promise<Outcome> {
   const md = cxoMetadata(data)
   const kind = str(md.kind)
-  const repId = await repIdFor(data)
+  let repId = await repIdFor(data)
   const paymentId = str(data.id)
   const cents = whopMoneyToCents(data.total ?? data.usd_total ?? data.subtotal)
-  if (!repId) return { outcome: 'no_rep', resource_id: paymentId, detail: { kind } }
+  let publicBuyer: Record<string, unknown> | null = null
+  if (!repId) {
+    if (kind === CXO_WHOP_KINDS.buildFee || kind === CXO_WHOP_KINDS.charge) {
+      await alertUnmatched('payment.succeeded', data)
+      return { outcome: 'no_rep_alerted', resource_id: paymentId, detail: { kind } }
+    }
+    // A public buyer of the seat plan: make their account and send the welcome.
+    const b = await ensurePublicBuyerRep(data, 'payment.succeeded')
+    if (!b.ok) return { outcome: `no_rep_${b.reason}`, resource_id: paymentId, detail: { kind, ...(b.detail ?? {}) } }
+    repId = b.repId
+    publicBuyer = { created: b.created, welcome: b.welcome }
+  }
   const now = new Date().toISOString()
 
   if (kind === CXO_WHOP_KINDS.buildFee) {
@@ -96,14 +108,18 @@ async function onPaymentSucceeded(data: Obj): Promise<Outcome> {
   })
   // Our own ads' Purchase: the first paid seat only, never a renewal.
   const capi = r.subscription_activated_at ? null : await sendCxoPurchase(data, cents)
-  return { outcome: 'subscription_paid', rep_id: repId, resource_id: paymentId, ...(capi ? { detail: { capi } } : {}) }
+  const detail = { ...(capi ? { capi } : {}), ...(publicBuyer ? { public_buyer: publicBuyer } : {}) }
+  return { outcome: 'subscription_paid', rep_id: repId, resource_id: paymentId, ...(Object.keys(detail).length ? { detail } : {}) }
 }
 
 async function onPaymentFailed(data: Obj): Promise<Outcome> {
   const md = cxoMetadata(data)
   const repId = await repIdFor(data)
   const paymentId = str(data.id)
-  if (!repId) return { outcome: 'no_rep', resource_id: paymentId }
+  if (!repId) {
+    await alertUnmatched('payment.failed', data)
+    return { outcome: 'no_rep_alerted', resource_id: paymentId }
+  }
   const isSeat = str(md.kind) === CXO_WHOP_KINDS.subscription || !!str(obj(data.membership).id)
   if (isSeat) {
     const { data: rep } = await supabase.from('reps').select('billing_status').eq('id', repId).maybeSingle()
@@ -116,10 +132,19 @@ async function onPaymentFailed(data: Obj): Promise<Outcome> {
 }
 
 async function onMembership(type: string, data: Obj): Promise<Outcome> {
-  const repId = await repIdFor(data)
+  let repId = await repIdFor(data)
   const membershipId = str(data.id)
-  if (!repId) return { outcome: 'no_rep', resource_id: membershipId }
   const valid = type === 'membership.activated' || type === 'membership.went_valid'
+  if (!repId) {
+    if (!valid) {
+      await alertUnmatched(type, data)
+      return { outcome: 'no_rep_alerted', resource_id: membershipId }
+    }
+    // A public buyer whose membership event came before the payment.
+    const b = await ensurePublicBuyerRep(data, type)
+    if (!b.ok) return { outcome: `no_rep_${b.reason}`, resource_id: membershipId, detail: b.detail }
+    repId = b.repId
+  }
   const { data: rep } = await supabase.from('reps').select('billing_status').eq('id', repId).maybeSingle()
   const before = (rep as { billing_status?: string | null } | null)?.billing_status ?? null
   // Comped is an owner decision; Whop membership churn never overrides it.

@@ -5,13 +5,15 @@
  * (accounts.virtualcloser.com). Steps and statuses only: never a token, a
  * password, or a Pinnacle book row. Shape: lib/opsOnboarding/shared.ts
  * (CxoOnboardingBoard), the same step vocabulary as crmbuilds
- * shared/onboarding-board.ts.
+ * shared/onboarding-board.ts. The whole-board answer also carries `requests`,
+ * the open "Book a call" prospects (lib/opsOnboarding/requests.ts).
  *
  * Auth: Authorization: Bearer <OPS_ONBOARDING_SECRET> (lib/opsOnboarding/auth).
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { isOpsAuthorized } from '@/lib/opsOnboarding/auth'
 import { loadCxoBoard } from '@/lib/opsOnboarding/load'
+import { loadCxoCallRequests } from '@/lib/opsOnboarding/requests'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -31,5 +33,8 @@ export async function GET(req: NextRequest) {
   if (repId && !board.tenants.length) {
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404, headers: NO_STORE })
   }
-  return NextResponse.json(board, { headers: NO_STORE })
+  if (repId) return NextResponse.json(board, { headers: NO_STORE })
+  // "Book a call" requests, for the Accounts Lead stage. Null (unreadable) is sent as null, never as "none".
+  const requests = await loadCxoCallRequests()
+  return NextResponse.json({ ...board, requests }, { headers: NO_STORE })
 }
