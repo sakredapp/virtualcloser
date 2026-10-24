@@ -148,7 +148,7 @@ export default async function CxoRequestAccessPage({ searchParams }: { searchPar
     const booking: Booking = { start: res.start, end: res.end, event_created: res.eventCreated, booked_at: new Date().toISOString() }
     const { error } = await supabase
       .from('prospects')
-      .update({ payload: { ...(row.payload ?? {}), booking, vc_prospect_id: res.prospectId }, status: 'booked', pipeline_stage: 'call_booked' })
+      .update({ payload: { ...(row.payload ?? {}), booking, vc_prospect_id: res.prospectId }, status: 'booked', pipeline_stage: 'call_booked', meeting_at: res.start, timezone: 'America/New_York' })
       .eq('id', leadId)
     if (error) console.error('[cxo request-access] booking save failed', error.message)
     const whenLabel = easternLabel(res.start)

@@ -13,6 +13,7 @@ type ProspectRow = {
   email: string | null
   meeting_at: string | null
   timezone: string | null
+  source: string | null
 }
 
 export async function GET(req: NextRequest) {
@@ -33,7 +34,7 @@ export async function GET(req: NextRequest) {
   const [{ data: remind24 }, { data: remind1h }] = await Promise.all([
     supabase
       .from('prospects')
-      .select('id, name, email, meeting_at, timezone')
+      .select('id, name, email, meeting_at, timezone, source')
       .eq('status', 'booked')
       .not('email', 'is', null)
       .gte('meeting_at', h24Low)
@@ -41,7 +42,7 @@ export async function GET(req: NextRequest) {
       .is('reminder_24h_sent_at', null),
     supabase
       .from('prospects')
-      .select('id, name, email, meeting_at, timezone')
+      .select('id, name, email, meeting_at, timezone, source')
       .eq('status', 'booked')
       .not('email', 'is', null)
       .gte('meeting_at', h1Low)
@@ -54,9 +55,11 @@ export async function GET(req: NextRequest) {
 
   for (const row of (remind24 ?? []) as ProspectRow[]) {
     if (!row.email) continue
-    const tpl = bookingReminderEmail({ name: row.name, meetingAt: row.meeting_at, timezone: row.timezone }, '24h')
+    // Suite CXO request-access bookings: Suite CXO email from suitecxo.com (owner rule 2026-10-20).
+    const brand = row.source === 'cxo_request_access' ? 'cxo' as const : 'virtualcloser' as const
+    const tpl = bookingReminderEmail({ name: row.name, meetingAt: row.meeting_at, timezone: row.timezone, brand }, '24h')
     tasks.push(
-      sendEmail({ to: row.email, subject: tpl.subject, html: tpl.html, text: tpl.text, brand: 'virtualcloser' })
+      sendEmail({ to: row.email, subject: tpl.subject, html: tpl.html, text: tpl.text, brand })
         .then(async (r) => {
           if (!r.ok) { console.warn('[booking-reminders] 24h email failed:', row.id, r.error); return }
           await supabase.from('prospects').update({ reminder_24h_sent_at: sentAt }).eq('id', row.id)
@@ -76,9 +79,11 @@ export async function GET(req: NextRequest) {
 
   for (const row of (remind1h ?? []) as ProspectRow[]) {
     if (!row.email) continue
-    const tpl = bookingReminderEmail({ name: row.name, meetingAt: row.meeting_at, timezone: row.timezone }, '1h')
+    // Suite CXO request-access bookings: Suite CXO email from suitecxo.com (owner rule 2026-10-20).
+    const brand = row.source === 'cxo_request_access' ? 'cxo' as const : 'virtualcloser' as const
+    const tpl = bookingReminderEmail({ name: row.name, meetingAt: row.meeting_at, timezone: row.timezone, brand }, '1h')
     tasks.push(
-      sendEmail({ to: row.email, subject: tpl.subject, html: tpl.html, text: tpl.text, brand: 'virtualcloser' })
+      sendEmail({ to: row.email, subject: tpl.subject, html: tpl.html, text: tpl.text, brand })
         .then(async (r) => {
           if (!r.ok) { console.warn('[booking-reminders] 1h email failed:', row.id, r.error); return }
           await supabase.from('prospects').update({ reminder_1h_sent_at: sentAt }).eq('id', row.id)
