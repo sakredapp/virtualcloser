@@ -83,7 +83,8 @@ describe('Suite CXO morning brief: edge cases', () => {
     const { html, text } = renderExecEmail({ ...base, digest: emptyDigest, pinnacle: null, aiSummary: '' } as never)
     for (const s of ['Pinnacle revenue', 'Waiting on you', 'Gone quiet', '>Today', 'class="cx-stat']) expect(html).not.toContain(s)
     expect(`${html}${text}`).not.toMatch(/undefined|NaN|null/)
-    expect(text.trim().split('\n').length).toBe(2)
+    // greeting + one line, then the turn-it-off footer (blank, '--', the line)
+    expect(text.trim().split('\n').length).toBe(5)
   })
 
   it('says which side of the pace is missing, never "Same 0 days"', () => {
@@ -256,5 +257,31 @@ describe('Suite CXO morning brief: Ciao notices ride in the email', () => {
     } as never)
     expect(html).toContain('12d no contact')
     expect(html).toContain('deal gone quiet')
+  })
+})
+
+describe('Suite CXO morning brief: says how to turn it off (compliance note on #146)', () => {
+  const r = (assistantName?: string) =>
+    renderExecEmail({
+      digest,
+      pinnacle: null,
+      aiSummary: '',
+      name: 'Alex Sample',
+      timezone: 'America/New_York',
+      mode: 'daily',
+      brand: cxoEmailBrand(),
+      notices: [],
+      assistantName,
+    } as never)
+
+  it('the HTML and the plain text both say why it came and how to stop it, in the assistant name', () => {
+    const { html, text } = r('Chow')
+    expect(html).toContain('the executive email digest is on for your account')
+    expect(html).toContain('ask Chow to turn off the executive email digest')
+    expect(text).toContain('ask Chow to turn off the executive email digest, or change it in Settings.')
+  })
+
+  it('falls back to Ciao when no assistant name is set', () => {
+    expect(r().text).toContain('ask Ciao to turn off')
   })
 })
