@@ -167,7 +167,7 @@ export function hrefFor(member: FollowMember | undefined, tenant: OpsTenant, hre
 }
 
 /** The member's own Suite CXO host (their home subdomain when it is one of the tenant's), for email links. */
-export function homeUrl(tenant: Pick<OpsTenant, 'slug' | 'host_aliases'>, member: { home_subdomain?: string | null }): string {
+export function homeUrl(tenant: Pick<OpsTenant, 'slug' | 'host_aliases'>, member: { id: string; home_subdomain?: string | null }): string {
   const brand = getBrand('cxo')
   const h = (member.home_subdomain ?? '').trim().toLowerCase()
   const host = h && (h === tenant.slug || (tenant.host_aliases ?? []).includes(h)) ? h : tenant.slug
