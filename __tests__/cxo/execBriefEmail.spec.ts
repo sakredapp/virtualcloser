@@ -50,12 +50,12 @@ describe('Suite CXO morning brief email', () => {
   it('keeps every data point and drops the green/red status colors', () => {
     const { html, text, subject } = render()
     expect(subject).toBe(`Morning brief — ${new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'America/New_York' })} · $4.2M MTD`)
-    for (const s of ['$4.2M', '$5.3M', '71%', 'down 20%', 'Team Alpha', '$1.1M', 'Leadership sync', 'email drafts to approve', '12d no contact', 'Sample &amp; Co']) {
+    for (const s of ['$4.2M', '$5.3M', '71%', 'down 20%', 'Team Alpha', '$1.1M', 'Leadership sync', 'email drafts to approve']) {
       expect(html).toContain(s)
     }
     expect(html).not.toMatch(/#16a34a|#c21a00|#2563eb/i)
     // Plain-text twin carries the same sections.
-    for (const s of ['PINNACLE REVENUE', 'Same 20 days last mo: $5.3M', 'TOP TEAMS (MTD)', 'TODAY', 'WAITING ON YOU', 'GONE QUIET', 'Sample & Co']) {
+    for (const s of ['PINNACLE REVENUE', 'Same 20 days last mo: $5.3M', 'TOP TEAMS (MTD)', 'TODAY', 'WAITING ON YOU']) {
       expect(text).toContain(s)
     }
   })
@@ -167,5 +167,94 @@ describe('Suite CXO email logo: white in dark mode (owner 2026-10-20)', () => {
       expect(html).not.toContain('color-scheme')
       expect(html).not.toContain('suitecxo.com')
     }
+  })
+})
+
+describe('Suite CXO morning brief: Ciao notices ride in the email', () => {
+  const host = 'https://acme.suitecxo.com'
+  const twoNotices = [
+    { title: 'Day wrap: 2 to-dos slipped', body: 'Deck for the board is 1 day late.', href: `${host}/dashboard` },
+    { title: 'A number slipped: placement', body: null, href: `${host}/dashboard/numbers` },
+  ]
+  const renderWith = (notices: Array<{ title: string; body?: string | null; href: string }>, assistantName?: string) =>
+    renderExecEmail({
+      digest,
+      pinnacle: null,
+      aiSummary: '',
+      name: 'Alex Sample',
+      timezone: 'America/New_York',
+      mode: 'daily',
+      brand: cxoEmailBrand(),
+      notices,
+      assistantName,
+    } as never)
+
+  it('renders a "From Ciao" section with 2 notices, each title linking to the member host', () => {
+    const { html } = renderWith(twoNotices)
+    expect(html).toContain('From Ciao')
+    expect(html).toContain(`href="${host}/dashboard"`)
+    expect(html).toContain(`href="${host}/dashboard/numbers"`)
+    expect(html).toContain('Day wrap: 2 to-dos slipped')
+    expect(html).toContain('Deck for the board is 1 day late.')
+    expect(html).toContain('A number slipped: placement')
+    // Near the top: before the calendar.
+    expect(html.indexOf('From Ciao')).toBeLessThan(html.indexOf('Leadership sync'))
+  })
+
+  it("uses the member's own assistant name", () => {
+    expect(renderWith(twoNotices, 'Chow').html).toContain('From Chow')
+  })
+
+  it('escapes a notice title containing <b>&', () => {
+    const { html, text } = renderWith([{ title: 'Raise <b>& bonus</b>', body: 'R&D <i>now</i>', href: `${host}/x?a=1&b=2` }])
+    expect(html).toContain('Raise &lt;b&gt;&amp; bonus&lt;/b&gt;')
+    expect(html).not.toContain('<b>& bonus</b>')
+    expect(html).toContain('R&amp;D &lt;i&gt;now&lt;/i&gt;')
+    expect(html).toContain(`href="${host}/x?a=1&amp;b=2"`)
+    expect(text).toContain('Raise <b>& bonus</b>')
+  })
+
+  it('leaves the section out entirely when there are no notices', () => {
+    for (const r of [renderWith([]), render()]) {
+      expect(r.html).not.toContain('From Ciao')
+      expect(r.text).not.toContain('FROM CIAO')
+      expect(`${r.html}${r.text}`).not.toMatch(/0 notices/i)
+    }
+  })
+
+  it('shows at most 5 notices', () => {
+    const many = Array.from({ length: 8 }, (_, i) => ({ title: `Notice ${i + 1}`, href: `${host}/n/${i + 1}` }))
+    const { html, text } = renderWith(many)
+    expect(html).toContain('Notice 5')
+    expect(html).not.toContain('Notice 6')
+    expect(text).not.toContain('Notice 6')
+  })
+
+  it('the plain-text twin carries each notice and its link', () => {
+    const { text } = renderWith(twoNotices)
+    expect(text).toContain('FROM CIAO')
+    expect(text).toContain('Day wrap: 2 to-dos slipped')
+    expect(text).toContain(`${host}/dashboard`)
+    expect(text).toContain(`${host}/dashboard/numbers`)
+  })
+
+  it('has no "deals gone quiet" on the CXO brand', () => {
+    const { html, text } = renderWith(twoNotices)
+    for (const s of ['gone quiet', 'Gone quiet', 'no contact', 'Sample &amp; Co']) expect(html).not.toContain(s)
+    for (const s of ['GONE QUIET', 'gone quiet', 'Sample & Co']) expect(text).not.toContain(s)
+  })
+
+  it('a non-CXO brand still shows the quiet deals', () => {
+    const { html } = renderExecEmail({
+      digest,
+      pinnacle: null,
+      aiSummary: '',
+      name: 'Alex Sample',
+      timezone: 'America/New_York',
+      mode: 'daily',
+      brand: { name: 'Example', logoSrc: 'https://example.test/logo.png', accent: '#000000' },
+    } as never)
+    expect(html).toContain('12d no contact')
+    expect(html).toContain('deal gone quiet')
   })
 })

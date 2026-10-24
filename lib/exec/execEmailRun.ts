@@ -4,7 +4,11 @@ import { listMembers } from '@/lib/members'
 import { sendEmail } from '@/lib/email'
 import { buildExecDigest } from '@/lib/exec/digest'
 import { buildPinnacleBriefData, generateExecSummary } from '@/lib/exec/summary'
-import { renderExecEmail, cxoEmailBrand, type DigestMode, type EmailBrand } from '@/lib/exec/emailDigest'
+import { renderExecEmail, cxoEmailBrand, BRIEF_NOTICE_LIMIT, type BriefNotice, type DigestMode, type EmailBrand } from '@/lib/exec/emailDigest'
+import { listUndeliveredNotices, noticeKindsFor } from '@/lib/followups/notices'
+import { homeUrl } from '@/lib/followups/engine'
+import { cxoEmployeeOps } from '@/lib/cxoFeatures'
+import { assistantNameFromSettings } from '@/lib/assistantNameFromRows'
 import { isPinnacleViewer } from '@/lib/pinnacle/rollup'
 import { getBrand, type BrandKey } from '@/lib/brand'
 import { supabase } from '@/lib/supabase'
@@ -26,6 +30,12 @@ import type { Member } from '@/types'
  * (job = EXEC_EMAIL_JOB, meta = {rep_id, member_id, day}), and a member with
  * an ok row for that day is skipped, so a tick that lands twice in the 7am
  * hour never sends twice.
+ *
+ * Ciao's notices ride in the brief ("From Ciao"): unread, never-emailed notices
+ * from the last 7 days, the same kinds the Today Messages card shows. A failed
+ * notices read never blocks the brief (it goes without the section), and
+ * emailed_at is stamped on exactly the notices shown, only after the send
+ * worked, so a failed send retries them the next day.
  */
 
 const SEND_LOCAL_HOUR = 7
@@ -59,6 +69,18 @@ async function sentToday(repId: string, day: string): Promise<Set<string>> {
   return new Set(((data ?? []) as Array<{ meta: { member_id?: string } | null }>).map((r) => String(r.meta?.member_id ?? '')))
 }
 
+/** Stamp emailed_at on the notices a brief carried. Never throws: the email already went. */
+async function stampNoticesEmailed(repId: string, memberId: string, ids: string[]): Promise<void> {
+  if (!ids.length) return
+  const { error } = await supabase
+    .from('cxo_followup_notices')
+    .update({ emailed_at: new Date().toISOString() })
+    .eq('rep_id', repId)
+    .eq('member_id', memberId)
+    .in('id', ids)
+  if (error) console.error('[exec-email] notices emailed_at stamp failed', memberId, error.message)
+}
+
 async function emailTenant(tenant: Tenant, force: boolean, now: Date): Promise<number> {
   const tz = tenant.timezone || 'America/New_York'
   const { hour, weekday } = localParts(tz, now)
@@ -88,9 +110,30 @@ async function emailTenant(tenant: Tenant, force: boolean, now: Date): Promise<n
       ? cxoEmailBrand()
       : { name: bc.name, logoSrc: bc.logo.wordmarkSrc, logoWidth: 140, accent: bc.theme.accent }
 
+  const noticeKinds = noticeKindsFor(cxoEmployeeOps(tenant))
+
   let sent = 0
   for (const m of recipients) {
     if (already.has(m.id)) continue
+    // Notices first. A failed read is logged and the brief goes without them.
+    let noticeRows: Awaited<ReturnType<typeof listUndeliveredNotices>> = []
+    try {
+      noticeRows = await listUndeliveredNotices(tenant.id, m.id, { sinceDays: 7, limit: BRIEF_NOTICE_LIMIT, kinds: noticeKinds })
+    } catch (err) {
+      console.error('[exec-email] notices read failed for member', m.id, err)
+      await logError({
+        source: 'cron/exec-email',
+        errorType: 'notices_read_failed',
+        message: err instanceof Error ? err.message : String(err),
+        repId: tenant.id,
+        memberId: m.id,
+        context: { tenant: tenant.slug, memberId: m.id },
+      }).catch(() => {})
+      noticeRows = []
+    }
+    const base = homeUrl(tenant, m)
+    const notices: BriefNotice[] = noticeRows.map((n) => ({ title: n.title, body: n.body, href: `${base}${n.href || '/dashboard'}` }))
+    const noticeIds = noticeRows.map((n) => n.id)
     try {
       const digest = await buildExecDigest(tenant, { memberId: m.id, timezone: m.timezone || tz })
       const aiSummary = await generateExecSummary({
@@ -106,12 +149,15 @@ async function emailTenant(tenant: Tenant, force: boolean, now: Date): Promise<n
         timezone: m.timezone || tz,
         mode,
         brand: emailBrand,
+        notices,
+        assistantName: assistantNameFromSettings(tenant.settings, m.settings),
       })
       await recordJobRun(
         EXEC_EMAIL_JOB,
         async () => {
           const res = await sendEmail({ to: m.email!, subject, html, text, brand: brandKey })
           if (!res.ok) throw new Error(res.error ?? 'send failed')
+          await stampNoticesEmailed(tenant.id, m.id, noticeIds)
         },
         { rep_id: tenant.id, member_id: m.id, day: todayIso },
       )

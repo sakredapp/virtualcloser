@@ -93,7 +93,15 @@ export type EmailBrand = {
   paper?: string
   /** Legacy: unused since the 2026-10-20 redesign (summary is no longer a filled box). */
   paper2?: string
+  /** Suite CXO: leave out the sales-shaped "deals gone quiet" lines (no-sales ruling). */
+  hideSalesLines?: boolean
 }
+
+/** One of Ciao's notices for the brief. `href` is absolute (the member's own host + path). */
+export type BriefNotice = { title: string; body?: string | null; href: string }
+
+/** At most this many notices ride in one brief. */
+export const BRIEF_NOTICE_LIMIT = 5
 
 /**
  * Suite CXO email chrome: the real logo image only (cropped from the brand
@@ -110,6 +118,7 @@ export function cxoEmailBrand(): EmailBrand {
     logoHeight: CXO_EMAIL_LOGO.height,
     logoDarkSrc: CXO_EMAIL_LOGO.darkSrc,
     accent: C_DEFAULT.ink,
+    hideSalesLines: true,
   }
 }
 
@@ -122,8 +131,15 @@ export function renderExecEmail(input: {
   mode: DigestMode
   /** Brand identity for the email chrome (logo, accent, name). */
   brand: EmailBrand
+  /** Ciao's unread notices (lib/followups/notices listUndeliveredNotices). Empty or missing: no section. */
+  notices?: BriefNotice[]
+  /** The assistant's name as this member sees it (defaults to Ciao). */
+  assistantName?: string
 }): { subject: string; html: string; text: string } {
   const { digest: d, pinnacle: p, aiSummary, name, timezone: tz, mode, brand } = input
+  const notices = (input.notices ?? []).filter((n) => n && n.title).slice(0, BRIEF_NOTICE_LIMIT)
+  const assistant = (input.assistantName ?? '').trim() || 'Ciao'
+  const quietDeals = brand.hideSalesLines ? [] : d.quietDeals
   const C: EmailPalette = {
     ...C_DEFAULT,
     ...(brand.bg ? { bg: brand.bg } : {}),
@@ -189,7 +205,7 @@ export function renderExecEmail(input: {
   const waiting: Array<[string, string]> = []
   if (d.pendingDrafts > 0) waiting.push([`email draft${d.pendingDrafts === 1 ? '' : 's'} to approve`, String(d.pendingDrafts)])
   if (d.unansweredThreads > 0) waiting.push([`email${d.unansweredThreads === 1 ? '' : 's'} to answer`, String(d.unansweredThreads)])
-  if (d.quietDeals.length > 0) waiting.push([`deal${d.quietDeals.length === 1 ? '' : 's'} gone quiet`, String(d.quietDeals.length)])
+  if (quietDeals.length > 0) waiting.push([`deal${quietDeals.length === 1 ? '' : 's'} gone quiet`, String(quietDeals.length)])
   const waitingWords = waiting.map(([w, n]) => `${n} ${w}`)
   const waitingHtml = waiting.length
     ? sectionHead(C, 'Waiting on you') +
@@ -198,10 +214,10 @@ export function renderExecEmail(input: {
 
   // Quiet deals detail
   const quietHtml =
-    d.quietDeals.length > 0
+    quietDeals.length > 0
       ? sectionHead(C, 'Gone quiet') +
         listTable(
-          d.quietDeals
+          quietDeals
             .map((q) =>
               row(
                 C,
@@ -223,6 +239,23 @@ export function renderExecEmail(input: {
         <td class="cx-rule" width="3" style="width:3px;background:${C.ink};font-size:0;line-height:0;">&nbsp;</td>
         <td style="padding:2px 0 2px 16px;font:16px/1.6 ${FONT};color:${C.ink};">${esc(aiSummary)}</td>
       </tr></table></td></tr>`
+    : ''
+
+  // From Ciao: the notices the app would show, near the top. Left out when empty.
+  const noticesHtml = notices.length
+    ? sectionHead(C, `From ${esc(assistant)}`) +
+      listTable(
+        notices
+          .map((n) =>
+            row(
+              C,
+              `<a href="${esc(n.href)}" style="color:${C.ink};font-weight:600;text-decoration:underline;">${esc(n.title)}</a>${
+                n.body ? `<div class="cx-muted" style="color:${C.muted};font:13px/1.45 ${FONT};padding-top:2px;">${esc(n.body)}</div>` : ''
+              }`,
+            ),
+          )
+          .join(''),
+      )
     : ''
 
   const subject =
@@ -266,6 +299,7 @@ ${brand.logoDarkSrc ? emailLogoDarkHead(DARK_CSS) : '<meta name="color-scheme" c
           <tr><td class="cx-muted" style="font:600 11px/1.2 ${FONT};letter-spacing:0.12em;text-transform:uppercase;color:${C.muted};">${kicker} &middot; <span style="white-space:nowrap;">${esc(dateLabel)}</span></td></tr>
           <tr><td style="padding:10px 0 0;"><h1 style="margin:0;font:500 26px/1.25 ${SERIF};color:${C.ink};">Good morning, ${esc(first)}.</h1></td></tr>
           ${aiHtml}
+          ${noticesHtml}
           ${revenueHtml}
           ${calHtml}
           ${waitingHtml}
@@ -285,6 +319,15 @@ ${brand.logoDarkSrc ? emailLogoDarkHead(DARK_CSS) : '<meta name="color-scheme" c
     '',
   ]
   if (aiSummary) textLines.push(aiSummary, '')
+  if (notices.length) {
+    textLines.push(`FROM ${assistant.toUpperCase()}`)
+    for (const n of notices) {
+      textLines.push(`  - ${n.title}`)
+      if (n.body) textLines.push(`    ${n.body}`)
+      textLines.push(`    ${n.href}`)
+    }
+    textLines.push('')
+  }
   if (p) {
     textLines.push(
       'PINNACLE REVENUE',
@@ -307,9 +350,9 @@ ${brand.logoDarkSrc ? emailLogoDarkHead(DARK_CSS) : '<meta name="color-scheme" c
     textLines.push('TODAY', '  Nothing on the calendar.', '')
   }
   if (waitingWords.length) textLines.push('WAITING ON YOU', ...waitingWords.map((w) => `  - ${w}`), '')
-  if (d.quietDeals.length) {
+  if (quietDeals.length) {
     textLines.push('GONE QUIET')
-    for (const q of d.quietDeals)
+    for (const q of quietDeals)
       textLines.push(`  - ${q.name}${q.company ? ` · ${q.company}` : ''}${q.value ? ` (${fmtM(q.value)})` : ''} — ${q.days}d no contact`)
   }
   const text = textLines.join('\n').trimEnd()
