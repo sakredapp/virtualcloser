@@ -132,7 +132,7 @@ async function emailTenant(tenant: Tenant, force: boolean, now: Date): Promise<n
       noticeRows = []
     }
     const base = homeUrl(tenant, m)
-    const notices: BriefNotice[] = noticeRows.map((n) => ({ title: n.title, body: n.body, href: `${base}${n.href || '/dashboard'}` }))
+    const notices: BriefNotice[] = noticeRows.map((n) => ({ title: n.title, body: n.body, href: `${base}${safeNoticePath(n.href)}` }))
     const noticeIds = noticeRows.map((n) => n.id)
     try {
       const digest = await buildExecDigest(tenant, { memberId: m.id, timezone: m.timezone || tz })
@@ -206,4 +206,9 @@ export async function runExecEmail(opts: { force?: boolean; now?: Date } = {}): 
     }
   }
   return { cxoTenants: cxoTenants.length, totalSent, results }
+}
+
+// A notice link is only ever an app path ("/..."); anything else (a full URL, "//host", empty) opens the dashboard instead.
+export function safeNoticePath(href: string | null | undefined): string {
+  return typeof href === 'string' && href.startsWith('/') && !href.startsWith('//') ? href : '/dashboard'
 }

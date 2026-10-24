@@ -116,3 +116,14 @@ describe('exec brief email carries Ciao notices', () => {
     expect(stamps()).toHaveLength(0)
   })
 })
+
+describe('notice links only open app paths', async () => {
+  const { safeNoticePath } = await import('@/lib/exec/execEmailRun')
+  it('keeps a "/..." path', () => {
+    expect(safeNoticePath('/dashboard/numbers')).toBe('/dashboard/numbers')
+  })
+  it('sends a full URL, a "//host" link, empty or null to the dashboard', () => {
+    for (const bad of ['https://evil.example/x', '//evil.example', '', null, undefined, 'javascript:alert(1)'])
+      expect(safeNoticePath(bad as never)).toBe('/dashboard')
+  })
+})

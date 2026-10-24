@@ -265,6 +265,9 @@ export function renderExecEmail(input: {
 
   const logoW = brand.logoWidth ?? 120
   const logoH = brand.logoHeight
+  // Why they get it and how to stop it (compliance note on #146): an account email still says how to turn it off.
+  const footerWords = `You get this brief because the executive email digest is on for your account. To turn it off, ask ${assistant} to turn off the executive email digest, or change it in Settings.`
+  const footerHtml = `<tr><td class="cx-muted" style="padding:28px 0 0;font:400 12px/1.5 ${FONT};color:${C.muted};">${esc(footerWords)}</td></tr>`
   const html = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 ${brand.logoDarkSrc ? emailLogoDarkHead(DARK_CSS) : '<meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light">'}
@@ -304,6 +307,7 @@ ${brand.logoDarkSrc ? emailLogoDarkHead(DARK_CSS) : '<meta name="color-scheme" c
           ${calHtml}
           ${waitingHtml}
           ${quietHtml}
+          ${footerHtml}
         </table>
       </td></tr>
     </table>
@@ -355,7 +359,7 @@ ${brand.logoDarkSrc ? emailLogoDarkHead(DARK_CSS) : '<meta name="color-scheme" c
     for (const q of quietDeals)
       textLines.push(`  - ${q.name}${q.company ? ` · ${q.company}` : ''}${q.value ? ` (${fmtM(q.value)})` : ''} — ${q.days}d no contact`)
   }
-  const text = textLines.join('\n').trimEnd()
+  const text = `${textLines.join('\n').trimEnd()}\n\n--\n${footerWords}`
 
   return { subject, html, text }
 }
