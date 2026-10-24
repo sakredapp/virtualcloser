@@ -665,14 +665,17 @@ export type BookingReminderInput = {
 }
 
 export function bookingReminderEmail(input: BookingReminderInput, type: '24h' | '1h') {
-  const { name: BRAND_NAME } = tokens(input.brand)
+  const { name: BRAND_NAME, color: brandColor } = tokens(input.brand)
+  // Suite CXO prospects (brand 'cxo') get Suite CXO wording and no Virtual Closer cal.com link.
+  const isCxo = input.brand === 'cxo'
+  const callWord = isCxo ? 'intro call' : 'kickoff call'
   const is1h = type === '1h'
   const when = fmtMeeting(input.meetingAt, input.timezone)
   const firstName = input.name?.split(' ')[0] ?? null
 
   const title = is1h ? 'Your call is in 1 hour' : 'Your call is tomorrow'
   const pill = is1h ? '1-HOUR REMINDER' : '24-HOUR REMINDER'
-  const pillBg = is1h ? BRAND_RED : '#b35a00'
+  const pillBg = isCxo ? brandColor : is1h ? BRAND_RED : '#b35a00'
 
   const body = `
     <p style="margin:0 0 14px;display:inline-block;background:${pillBg};color:#ffffff;font-size:11px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;padding:5px 10px;border-radius:999px;">${pill}</p>
@@ -680,12 +683,12 @@ export function bookingReminderEmail(input: BookingReminderInput, type: '24h' | 
     <p style="margin:0 0 20px;font-size:15px;color:${BRAND_INK};">
       ${firstName ? `Hey ${escape(firstName)},` : 'Hey,'}<br><br>
       ${is1h
-        ? `Just a reminder — your kickoff call with ${BRAND_NAME} starts in <strong>1 hour</strong>.`
-        : `Just a reminder — your kickoff call with ${BRAND_NAME} is <strong>tomorrow</strong>.`
+        ? `Just a reminder — your ${callWord} with ${BRAND_NAME} starts in <strong>1 hour</strong>.`
+        : `Just a reminder — your ${callWord} with ${BRAND_NAME} is <strong>tomorrow</strong>.`
       }
     </p>
 
-    ${!is1h ? `<p style="margin:0 0 20px;font-size:15px;color:${BRAND_MUTED};line-height:1.65;">
+    ${!is1h && !isCxo ? `<p style="margin:0 0 20px;font-size:15px;color:${BRAND_MUTED};line-height:1.65;">
       We're looking forward to talking through your operation and where AI can come in to help you scale revenue with fewer headaches. Whether it's automating follow-up, speeding up your sales cycle, or getting more out of the leads you're already working — we'll map out exactly what that looks like for your business.
     </p>` : ''}
 
@@ -701,8 +704,10 @@ export function bookingReminderEmail(input: BookingReminderInput, type: '24h' | 
     </table>
 
     <p style="margin:22px 0 8px;font-size:14px;color:${BRAND_MUTED};">
-      Can't make it? No worries —
-      <a href="${CAL_RESCHEDULE_URL}" style="color:${BRAND_RED};text-decoration:none;font-weight:600;">pick a new time here →</a>
+      ${isCxo
+        ? `Can't make it? Reply to this email and we'll find a new time.`
+        : `Can't make it? No worries —
+      <a href="${CAL_RESCHEDULE_URL}" style="color:${BRAND_RED};text-decoration:none;font-weight:600;">pick a new time here →</a>`}
     </p>
 
     <p style="margin:10px 0 0;font-size:14px;color:${BRAND_MUTED};">
@@ -727,11 +732,11 @@ export function bookingReminderEmail(input: BookingReminderInput, type: '24h' | 
       title,
       ``,
       is1h
-        ? `Your kickoff call with ${BRAND_NAME} starts in 1 hour.`
-        : `Your kickoff call with ${BRAND_NAME} is tomorrow.`,
+        ? `Your ${callWord} with ${BRAND_NAME} starts in 1 hour.`
+        : `Your ${callWord} with ${BRAND_NAME} is tomorrow.`,
       `When: ${when}`,
       input.timezone ? `Timezone: ${input.timezone}` : null,
-      `\nCan't make it? Reschedule here: ${CAL_RESCHEDULE_URL}`,
+      isCxo ? `\nCan't make it? Reply to this email and we'll find a new time.` : `\nCan't make it? Reschedule here: ${CAL_RESCHEDULE_URL}`,
       `\nQuestions? Reply to this email.`,
     ]
       .filter(Boolean)
