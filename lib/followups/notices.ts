@@ -62,6 +62,38 @@ export async function listNotices(repId: string, memberId: string, limit = 40, k
   return ((data ?? []) as Array<Omit<NoticeView, 'href'> & { href: string | null }>).map((r) => ({ ...r, href: r.href || '/dashboard' }))
 }
 
+/**
+ * Notices for the 7am brief email (lib/exec/execEmailRun): unread AND never
+ * emailed, from the last `sinceDays`, newest first. Pass the same `kinds` the
+ * Today Messages card uses (noticeKindsFor) so the email never shows what the
+ * app would hide. A missing table returns empty; any other read error throws,
+ * so the caller can send the brief without the section.
+ */
+export async function listUndeliveredNotices(
+  repId: string,
+  memberId: string,
+  opts: { sinceDays?: number; limit?: number; kinds?: NoticeView['kind'][] } = {},
+): Promise<NoticeView[]> {
+  const sinceDays = opts.sinceDays ?? 7
+  const limit = Math.min(Math.max(opts.limit ?? 5, 1), 50)
+  const since = new Date(Date.now() - sinceDays * 86_400_000).toISOString()
+  let q = supabase
+    .from('cxo_followup_notices')
+    .select(COLS)
+    .eq('rep_id', repId)
+    .eq('member_id', memberId)
+    .is('read_at', null)
+    .is('emailed_at', null)
+    .gte('created_at', since)
+  if (opts.kinds) q = q.or(noticeKindsOr(opts.kinds))
+  const { data, error } = await q.order('created_at', { ascending: false }).limit(limit)
+  if (error) {
+    if (noticesMissing(error)) return []
+    throw error
+  }
+  return ((data ?? []) as Array<Omit<NoticeView, 'href'> & { href: string | null }>).map((r) => ({ ...r, href: r.href || '/dashboard' }))
+}
+
 export async function unreadNoticeCount(repId: string, memberId: string, kinds?: NoticeView['kind'][]): Promise<number> {
   let q = supabase
     .from('cxo_followup_notices')
