@@ -56,7 +56,8 @@ export async function sendFixRequestUpdate(
     const href = isEmployeeOnlyMember(member, tenant) ? '/dashboard/me' : '/dashboard'
     const fresh = await insertNotices([{
       rep_id: r.rep_id, member_id: member.id, key: noticeKey(kind, r.id, now), kind: 'report',
-      item_kind: 'fix_request', item_id: r.id, title, body, href, due_date: null,
+      // item_kind must pass cxo_followup_notices_item_kind_check (request|card|meeting|report|approval|praise).
+      item_kind: 'report', item_id: r.id, title, body, href, due_date: null,
     }])
     if (!fresh.length) return { sent: false, reason: 'duplicate' }
 
