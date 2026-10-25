@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import PageHeader from '@/app/components/PageHeader'
+import ReportIssueCard from './ReportIssueCard'
 import { supabase } from '@/lib/supabase'
 import { listTodos, todaysMeetings, type Todo } from '@/lib/today'
 import { cardsAssignedTo, ensureStarterBoard, isDoneListTitle, type AssignedCard } from '@/lib/boards'
@@ -227,6 +228,9 @@ export default async function CxoToday({ tenantId, memberId, firstName, ownerNam
           </ul>
         )}
       </section>
+
+      {/* Report a problem: the member hears back here and by email (lib/feedback/fixRequestUpdates). */}
+      <ReportIssueCard />
     </main>
   )
 }
