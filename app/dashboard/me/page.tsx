@@ -12,6 +12,7 @@ import { cxoEmployeeOps } from '@/lib/cxoFeatures'
 import { listNotices, noticeKindsFor } from '@/lib/followups/notices'
 import PeopleHub from '@/app/components/cxo/PeopleHub'
 import MiraNotices from './MiraNotices'
+import ReportIssueCard from '@/app/dashboard/ReportIssueCard'
 import WeeklyStatusCard from '@/app/components/cxo/WeeklyStatusCard'
 import DayOneCard from '@/app/components/cxo/DayOneCard'
 import MessagesCard from '@/app/dashboard/today/MessagesCard'
@@ -61,6 +62,7 @@ export default async function MyPage() {
         <div style={{ marginTop: 16 }}><MessagesCard initial={messages} timezone={tz} messagesOnly /></div>
         <div style={{ marginTop: 16 }}><PeopleHub /></div>
         {nameCard}
+        <ReportIssueCard />
       </main>
     )
   }
@@ -128,6 +130,7 @@ export default async function MyPage() {
         <PeopleHub hideOwnQuotas />
       </div>
       {nameCard}
+      <ReportIssueCard />
     </main>
   )
 }
