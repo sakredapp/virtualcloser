@@ -79,8 +79,9 @@ export default async function SupportPage() {
       <section className="card" style={{ marginTop: '0.8rem' }}>
         <div className="section-head"><h2>Found a bug?</h2></div>
         <p className="meta">
-          Email <a href={mailto}>{email}</a> with what you did, what you expected and what happened. A
-          screenshot helps.
+          Signed in? Use <Link href="/dashboard">Request a change / report an issue</Link> on your dashboard. We
+          reply there and by email when we start and when it is fixed. Not signed in? Email <a href={mailto}>{email}</a>
+          with what you did, what you expected and what happened. A screenshot helps.
         </p>
       </section>
 

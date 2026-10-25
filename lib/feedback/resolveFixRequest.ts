@@ -1,9 +1,11 @@
 // Resolve a fix-request (the dev marks it done after shipping the fix). Always
 // clears the matching "known limitation" rule from the education brain so the
 // bot stops saying it's coming. The resolution message is stored on the row
-// for the app to show; nothing is pushed to anyone.
+// for the app to show, and the member who filed it gets a "done" update
+// (lib/feedback/fixRequestUpdates.ts) unless notify is false.
 
 import { supabase } from '@/lib/supabase'
+import { sendFixRequestUpdate } from '@/lib/feedback/fixRequestUpdates'
 
 export async function resolveFixRequest(
   id: string,
@@ -51,5 +53,14 @@ export async function resolveFixRequest(
     }
   }
 
-  return { ok: true, notified: false, clearedRules }
+  // Tell the member who filed it (in-app + email), unless the dev says not to.
+  // `message` is the client-facing "Customer note:"; without it they get the
+  // plain default line. Already-resolved rows are not announced twice.
+  let notified = false
+  if (opts.notify !== false && r.status !== 'resolved') {
+    const sent = await sendFixRequestUpdate(id, 'done', message)
+    notified = sent.sent
+  }
+
+  return { ok: true, notified, clearedRules }
 }
