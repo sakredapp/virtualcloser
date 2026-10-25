@@ -23,6 +23,7 @@
  */
 import { isEmployeeOnlyMember } from '@/lib/employees/access'
 import { validateAssistantName } from '@/lib/assistantName'
+import { parsePace } from '@/lib/feedback/fixRequestUpdatesShared'
 
 export type WhoRule =
   /** Anyone signed in, on their own things. */
@@ -132,6 +133,13 @@ export const REGISTRY: RegistryEntry[] = [
     aliases: ['exec digest', 'email digest', 'daily digest', 'morning email'],
     what: 'A short email digest of the company for owners and admins. Off unless you turn it on.',
     where: { path: S, label: 'Ask the assistant (no page field)' }, type: 'boolean', who: 'owner_admin', risky: false, scope: 'me',
+    sources: [], how: { mode: 'fn' },
+  },
+  {
+    key: 'notify.ticket_update_pace', kind: 'setting', label: 'Updates on your reported issues',
+    aliases: ['ticket updates', 'update pace', 'report updates', 'issue updates', 'bug updates', 'how often updates'],
+    what: 'How often we update you on an issue you reported: when we start and when it is fixed, a short update once a day, or every step.',
+    where: { path: S, label: 'Ask the assistant (no page field)' }, type: 'string', inputs: 'start_done | daily | every_step (plain words work: "daily", "every step")', who: 'self', risky: false, scope: 'me',
     sources: [], how: { mode: 'fn' },
   },
   {
@@ -651,6 +659,10 @@ export function validateSettingValue(key: string, value: unknown): Checked {
     case 'notify.exec_email_digest': {
       const b = bool(value)
       return b === null ? { ok: false, error: 'Say on or off.' } : { ok: true, value: b }
+    }
+    case 'notify.ticket_update_pace': {
+      const pace = parsePace(value)
+      return pace ? { ok: true, value: pace } : { ok: false, error: 'Say start and done, daily, or every step.' }
     }
     case 'profile.timezone': {
       const tz = String(value ?? '').trim()

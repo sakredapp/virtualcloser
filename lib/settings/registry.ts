@@ -44,6 +44,7 @@ import { listMcpTokens, mcpKeyScope, revokeMcpToken } from '@/lib/mcp/tokens'
 import { listFeeds, removeFeed } from '@/lib/icsFeeds'
 import { googleConnectedFor } from '@/lib/onboarding/dayOneShared'
 import { isEmployeeOnlyMember } from '@/lib/employees/access'
+import { normalizePace, PACE_LABEL } from '@/lib/feedback/fixRequestUpdatesShared'
 
 type TenantLike = {
   id: string
@@ -142,6 +143,8 @@ export async function currentValue(ctx: Pick<RegistryCtx, 'tenant' | 'member'>, 
       return workHours({ settings: (await freshMemberSettings(member.id)).settings } as Parameters<typeof workHours>[0])
     case 'notify.exec_email_digest':
       return (await freshMemberSettings(member.id)).settings.exec_email_digest === true
+    case 'notify.ticket_update_pace':
+      return normalizePace((await freshMemberSettings(member.id)).settings.ticket_update_pace) ?? '(not set: we ask on your next report)'
     case 'ai.nudges_paused_until':
       return (await freshMemberSettings(member.id)).settings.followups_paused_until ?? '(not paused)'
     case 'about.role_focus': {
@@ -375,6 +378,12 @@ async function writeSetting(ctx: RegistryCtx, e: RegistryEntry, value: unknown, 
     case 'notify.exec_email_digest': {
       await mergeMemberSettings(member.id, { exec_email_digest: value === true ? true : null })
       return done(`The executive email digest is ${value ? 'on' : 'off'}.`)
+    }
+    case 'notify.ticket_update_pace': {
+      const pace = normalizePace(value)
+      if (!pace) return { ok: false, error: 'invalid', say: 'Say start and done, daily, or every step.' }
+      await mergeMemberSettings(member.id, { ticket_update_pace: pace })
+      return done(`Got it. We'll update you on reported issues ${PACE_LABEL[pace]}.`)
     }
     case 'company.logo_url': {
       const r = await saveCompanyLogo(tenant.id, member, value)

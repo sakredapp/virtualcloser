@@ -59,7 +59,7 @@ export default function ReportIssueCard() {
           className="meta"
           style={{ margin: '0.7rem 0 0', fontSize: '0.82rem', color: 'var(--signal-ok, #16a34a)' }}
         >
-          ✓ Logged — it’ll be in the team’s daily fix digest. Thank you.
+          ✓ Logged, the team has it. We’ll keep you posted here and by email. Thank you.
           <button
             className="btn"
             style={{ marginLeft: '0.6rem', fontSize: '0.74rem', padding: '0.2rem 0.5rem' }}

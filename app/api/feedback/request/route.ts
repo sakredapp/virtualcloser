@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireMember } from '@/lib/tenant'
 import { logFixRequest, type FixRequestSeverity } from '@/lib/feedback/fixRequests'
 import { alertOperator } from '@/lib/alerts'
+import { sendFixRequestUpdate } from '@/lib/feedback/fixRequestUpdates'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -54,5 +55,9 @@ export async function POST(req: NextRequest) {
     })
   }
 
-  return NextResponse.json({ ok: true, id: row.id })
+  // Acknowledge in the app, and ask how often they want updates if they have
+  // not said yet (lib/feedback/fixRequestUpdates.ts). Best-effort.
+  const ack = await sendFixRequestUpdate(row.id, 'ack', null)
+
+  return NextResponse.json({ ok: true, id: row.id, ack: ack.sent })
 }

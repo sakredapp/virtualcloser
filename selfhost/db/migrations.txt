@@ -121,3 +121,4 @@ cxo_ciao_chat_folders.sql
 # baseline 2026-10-22: new files go below this line
 cxo_ciao_chat_memory.sql
 private_server_boxes.sql
+fix_requests_client_updates_migration.sql
