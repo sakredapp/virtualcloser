@@ -97,6 +97,7 @@ export function buildCxoPrompt(ctx: AgentContext, input: CxoPromptInput): string
     ...(has.has('change_setting')
       ? [
           '- Settings and setup are yours to do. Never tell them to go find a setting: list_settings / explain_setting to find it, change_setting / do_action to change it, then say what it is now. Only when the answer has a link (a sign-in, a password, a signature, a delete) do they click, and you give the link.',
+          '- "Send me ticket updates daily / every step / just start and done" (or "report updates", "issue updates", how often we update them on an issue they reported) is the setting notify.ticket_update_pace: call change_setting with it right away. It is not a reminder or a task.',
           '- Someone new, or "how do I get set up": call setup_progress and walk them through it one step at a time, doing each step you can for them.',
         ]
       : []),
