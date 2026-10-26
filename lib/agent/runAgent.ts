@@ -34,6 +34,8 @@ import { buildCxoPrompt, CXO_DRAFTING_RULES, CXO_HONESTY_RULES } from './cxoProm
 import { googleStateFor, renderGoogleState } from './googleState'
 import { actionSucceeded, claimsAction, UNBACKED_CLAIM_FLAG, UNBACKED_CLAIM_NOTE } from './actionClaims'
 import { answerCheckEnabled, checkAnswer, collectToolContext, type AnswerCheckMeta } from './answerCheck'
+import { collectReads, formatReply, type ReplyFormatMeta } from './replyFormatter'
+import type { ReplyFormatPayload } from './replyFormatShared'
 import { claimsPastConversation, conversationStateLine, NEW_CHAT_FALLBACK, PAST_TALK_RETRY_NOTE } from './conversationState'
 import { attachDigests, fitHistory, sourceDigest, stripDigest, summaryBlock, type SourceCall } from './chatMemory'
 import { cxoEmployeeOps, inboxAllowed } from '@/lib/cxoFeatures'
@@ -86,6 +88,8 @@ export type RunAgentInput = {
   skipGapDetect?: boolean
   /** 'slack': sends and changes are held for a yes in the app (lib/ops/agentGate). */
   channel?: AgentChannel
+  /** A spoken / voice answer: never laid out by the reply formatter. */
+  voice?: boolean
 }
 
 /** Token + tool accounting for one runAgent call (cost tracking for evals and the usage widget). */
@@ -135,6 +139,13 @@ export type RunAgentResult = {
    * answer row so a follow-up can reuse it instead of fetching again.
    */
   sourceDigest?: string | null
+  /**
+   * The reply formatting step (lib/agent/replyFormatter) on this answer: the
+   * checked layout to draw (null = draw the answer as written) and why. Only
+   * set for a Suite CXO app answer; replyText is always the answer as written.
+   */
+  replyFormat?: ReplyFormatPayload | null
+  replyFormatMeta?: ReplyFormatMeta
 }
 
 /** History entry stored in member.settings.agent_history. */
@@ -592,6 +603,9 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
     result.choice = undefined
     // The server wrote this text, not the model: nothing for the check to judge.
     if (result.answerCheck) result.answerCheck = { checked: false, revised: false, reason: 'skipped' }
+    // ...and nothing to lay out: the proposal is shown exactly as the server wrote it.
+    delete result.replyFormat
+    delete result.replyFormatMeta
     return result
   }
   // Safety net: if the bot said it couldn't do something, detect the missing
@@ -936,6 +950,29 @@ async function runAgentInner(input: RunAgentInput, held: string[], proposals: Pe
           }
         }
       }
+      // Suite CXO app: the reply formatting step (lib/agent/replyFormatter),
+      // after the check, on the checked answer. It sees only the draft and the
+      // tool results this person already got this turn. Not for Slack, voice,
+      // fixed server lines, choices, or turns that act (proposals, intents):
+      // those are shown exactly as written.
+      let replyFormat: ReplyFormatPayload | null | undefined
+      let replyFormatMeta: ReplyFormatMeta | undefined
+      if (isCxo && replyText && !collectedChoice && ctx.channel === 'app' && !proposals.length && !collectedIntents.length
+        && replyText !== NEW_CHAT_FALLBACK && !replyText.includes(UNBACKED_CLAIM_FLAG)) {
+        const formatted = await formatReply({
+          question: input.text,
+          answer: replyText,
+          reads: collectReads(messages, runStart),
+          assistantName: ctx.assistantName || ASSISTANT_NAME,
+          voice: !!input.voice,
+        })
+        replyFormat = formatted.payload
+        replyFormatMeta = formatted.meta
+        if (formatted.usage) {
+          totalInput += formatted.usage.input_tokens
+          totalOutput += formatted.usage.output_tokens
+        }
+      }
       await recordUsage(ctx, totalInput, totalOutput, toolCalls, errors, modelUsed)
       const digest = sourceDigest(sourceCalls)
       return {
@@ -946,6 +983,7 @@ async function runAgentInner(input: RunAgentInput, held: string[], proposals: Pe
         usage: usage(),
         ...(answerCheck ? { answerCheck } : {}),
         ...(digest ? { sourceDigest: digest } : {}),
+        ...(replyFormatMeta ? { replyFormat: replyFormat ?? null, replyFormatMeta } : {}),
       }
     }
 

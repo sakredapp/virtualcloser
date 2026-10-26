@@ -26,6 +26,8 @@ import { usePathname, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { MiraOrb } from '../mira/MiraOrb'
 import Markdown from './Markdown'
+import FormattedAnswer from './ReplyFormat'
+import { normalizeReplyFormat, type ReplyFormatPayload } from '@/lib/agent/replyFormatShared'
 import { useDictation } from '../mira/useDictation'
 import DailyQueueReport from './DailyQueueReport'
 import { QUEUE_COMMAND, isRunQueueText, summaryLine, type QueueReport } from '@/lib/mira/dailyQueueShared'
@@ -51,7 +53,8 @@ export type MiraBarProps = {
   queueDemo?: QueueReport
 }
 
-type Msg = { id: string; role: 'user' | 'assistant'; content: string; error?: boolean; queue?: QueueReport }
+/** `format`: the reply formatting step's layout (lib/agent/replyFormatter); `content` stays the answer as written. */
+type Msg = { id: string; role: 'user' | 'assistant'; content: string; error?: boolean; queue?: QueueReport; format?: ReplyFormatPayload }
 type Choice = { prompt: string; options: Array<{ label: string; value: string }> }
 
 const DEMO_FALLBACK =
@@ -254,7 +257,7 @@ export default function MiraBar({ firstName, mode = 'live', canned = [], answer,
         push({ role: 'assistant', content: `Sign in again to ask ${assistantName}.`, error: true })
         return
       }
-      const j = (await r.json().catch(() => null)) as { reply?: string; choice?: Choice; error?: string; queue?: QueueReport; new_conversation?: boolean } | null
+      const j = (await r.json().catch(() => null)) as { reply?: string; choice?: Choice; error?: string; queue?: QueueReport; new_conversation?: boolean; format?: unknown } | null
       const reply = (j?.reply ?? '').trim()
       if (!r.ok || !j) {
         push({ role: 'assistant', content: reply || 'Something hiccuped on my end. Ask me that again in a moment.', error: true })
@@ -266,7 +269,10 @@ export default function MiraBar({ firstName, mode = 'live', canned = [], answer,
         push({ role: 'assistant', content: reply, queue: j.queue })
         // Today keeps the report for the day, and the starter is done.
         router.refresh()
-      } else if (reply) push({ role: 'assistant', content: reply, error: Boolean(j.error) })
+      } else if (reply) {
+        const format = j.error ? null : normalizeReplyFormat(j.format)
+        push({ role: 'assistant', content: reply, error: Boolean(j.error), ...(format ? { format } : {}) })
+      }
       else if (j.error) push({ role: 'assistant', content: String(j.error), error: true })
       if (j.choice && Array.isArray(j.choice.options) && j.choice.options.length > 0) setChoice(j.choice)
     } catch {
@@ -418,7 +424,7 @@ export default function MiraBar({ firstName, mode = 'live', canned = [], answer,
               ? <p key={m.id} className="cx-dock__q">{m.content}</p>
               : m.queue
                 ? <div key={m.id} className="cx-dock__a cx-dock__a--queue"><DailyQueueReport report={m.queue} mode={mode} onChange={() => router.refresh()} /></div>
-                : <div key={m.id} className="cx-dock__a" data-error={m.error ? '' : undefined}><Markdown text={m.content} /></div>,
+                : <div key={m.id} className="cx-dock__a" data-error={m.error ? '' : undefined}>{m.format && !m.error ? <FormattedAnswer format={m.format} text={m.content} /> : <Markdown text={m.content} />}</div>,
             )}
             {choice && !busy && (
               <div className="cx-dock__chips" role="group" aria-label={choice.prompt}>
