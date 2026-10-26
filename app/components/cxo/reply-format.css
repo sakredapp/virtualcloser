@@ -1,0 +1,81 @@
+/* Ciao formatted answers (./ReplyFormat.tsx). Tokens only (--cx-*, the report
+   kit's verdict colours), so light and dark follow the theme. Sizes are in em
+   so the chat's text-size control scales them. Nothing here may make the page
+   scroll sideways at 390px: every child is min-width 0 and the table has its
+   own scroller. */
+
+.cx-rf { display: flex; flex-direction: column; gap: 0.75em; min-width: 0; max-width: 100%; }
+.cx-rf-say { margin: 0; color: var(--cx-ink); }
+.cx-rf-after { margin: 0; color: var(--cx-muted); font-size: 0.94em; }
+
+.cx-rf-card {
+  min-width: 0; max-width: 100%;
+  border: 1px solid var(--cx-line); background: var(--cx-surface); border-radius: 12px;
+  padding: 0.75em 0.85em; display: flex; flex-direction: column; gap: 0.55em; color: var(--cx-ink);
+}
+.cx-rf-heading { margin: 0; font: 600 0.82em/1.3 var(--cx-sans, Inter, system-ui, sans-serif); color: var(--cx-ink); letter-spacing: 0; }
+.cx-rf-caption { margin: 0; font-size: 0.75em; color: var(--cx-muted); font-variant-numeric: tabular-nums; }
+
+/* numbers: the report kit's StatRow, tightened for a chat column */
+.cx-rf-numbers { min-width: 0; display: flex; flex-direction: column; gap: 0.4em; }
+
+/* table */
+.cx-rf-table-scroll { overflow-x: auto; max-width: 100%; -webkit-overflow-scrolling: touch; margin: 0 -2px; }
+.cx-rf-table { width: 100%; border-collapse: collapse; font-size: 0.82em; font-variant-numeric: tabular-nums; }
+.cx-rf-table th {
+  text-align: left; font-weight: 500; font-size: 0.86em; text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--cx-muted); padding: 0 0.4em 0.5em; border-bottom: 1px solid var(--cx-line); white-space: nowrap;
+}
+.cx-rf-table td { padding: 0.5em 0.4em; border-bottom: 1px solid var(--cx-line); white-space: nowrap; color: var(--cx-ink); }
+.cx-rf-table tr:last-child td { border-bottom: none; }
+.cx-rf-table td:first-child { font-weight: 500; max-width: 12em; overflow: hidden; text-overflow: ellipsis; }
+.cx-rf-table [data-num] { text-align: right; }
+.cx-rf-more {
+  align-self: flex-start; background: none; border: none; padding: 0; cursor: pointer;
+  font: 600 0.8em/1.3 var(--cx-sans, Inter, system-ui, sans-serif); color: var(--cx-ink);
+  text-decoration: underline; text-decoration-color: var(--cx-silver, var(--cx-faint)); text-underline-offset: 3px;
+}
+.cx-rf-more:hover { text-decoration-color: var(--cx-ink); }
+
+/* bar rows: the kit's .cx-barlist, without its top margin */
+.cx-rf-card .cx-barlist { margin: 0; }
+.cx-rf-card .cx-barlist li { font-size: 0.82em; }
+
+/* line */
+.cx-rf-line { min-width: 0; }
+.cx-rf-line-top { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5em; margin-bottom: 0.25em; }
+.cx-rf-line-figure { font: 600 1.35em/1.1 var(--cx-sans, Inter, system-ui, sans-serif); font-variant-numeric: tabular-nums; color: var(--cx-ink); }
+.cx-rf-line-ends { display: flex; justify-content: space-between; font-size: 0.72em; color: var(--cx-muted); margin-top: 0.2em; }
+
+/* split */
+.cx-rf-split-bar { display: flex; height: 10px; border-radius: 999px; overflow: hidden; background: var(--cx-chart-grid); }
+.cx-rf-split-bar > span { display: block; height: 100%; }
+.cx-rf-legend { list-style: none; margin: 0.6em 0 0; padding: 0; display: grid; gap: 0.3em; font-size: 0.82em; }
+.cx-rf-legend li { display: flex; align-items: center; gap: 0.45em; min-width: 0; }
+.cx-rf-dot { width: 8px; height: 8px; border-radius: 999px; flex-shrink: 0; }
+.cx-rf-legend-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--cx-ink); }
+.cx-rf-legend-value { font-variant-numeric: tabular-nums; font-weight: 500; color: var(--cx-ink); }
+.cx-rf-legend-pct { font-variant-numeric: tabular-nums; color: var(--cx-muted); width: 3em; text-align: right; }
+
+/* steps */
+.cx-rf-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.55em; }
+.cx-rf-steps li { display: flex; gap: 0.6em; align-items: flex-start; font-size: 0.9em; line-height: 1.45; margin: 0; padding: 0; }
+.cx-rf-step-n {
+  width: 1.45em; height: 1.45em; border-radius: 999px; flex-shrink: 0; margin-top: 0.05em;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 0.82em; font-weight: 600; font-variant-numeric: tabular-nums;
+  border: 1px solid var(--cx-line-strong); color: var(--cx-ink);
+}
+.cx-rf-step-n[data-first] { background: var(--cx-accent); border-color: var(--cx-accent); color: var(--cx-on-accent, var(--cx-surface)); }
+.cx-rf-step-text { min-width: 0; color: var(--cx-ink); }
+
+/* callout */
+.cx-rf-callout {
+  border-left: 3px solid var(--cx-line-strong); border-radius: 8px; background: var(--cx-surface);
+  padding: 0.6em 0.75em; display: flex; gap: 0.55em; align-items: flex-start; min-width: 0;
+}
+.cx-rf-callout .cx-rf-callout-text { font-size: 0.9em; line-height: 1.45; color: var(--cx-ink); min-width: 0; }
+
+/* the answer as written, behind "Full answer" */
+.cx-rf-full { color: var(--cx-ink); font-size: 1.15em; line-height: 1.55; }
+.cx-rf-full > :last-child { margin-bottom: 0; }

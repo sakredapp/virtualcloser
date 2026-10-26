@@ -16,6 +16,7 @@ import { isEmployeeCaller } from '@/lib/agent/access'
 import { SLACK_HELD_INTENT_KINDS, SLACK_INTENT_HELD_LINE } from '@/lib/ops/approvalsShared'
 import { EXPIRED_LINE, GATED_INTENT_KINDS, NOT_DONE_LINE, decidePending, gateApplies, intentSummary, proposalText, type PendingAction } from '@/lib/agent/confirmGateShared'
 import { fmtInTz } from '@/lib/cxoCalendar'
+import type { ReplyFormatPayload } from '@/lib/agent/replyFormatShared'
 
 export const FRIENDLY_ERRORS: Record<string, string> = {
   no_api_key: "I'm not switched on for this workspace yet. Ask your admin to add the AI key and I'll be right here.",
@@ -31,6 +32,11 @@ export type ChatTurnResult = {
   listedItems?: Array<{ id: string; content: string }>
   /** Approval rows this turn put on hold (Slack: they wait for a yes in the app). */
   held: string[]
+  /**
+   * The checked layout for this reply (lib/agent/replyFormatter), only when
+   * `reply` is the answer exactly as the agent wrote it (no receipts added).
+   */
+  format?: ReplyFormatPayload
 }
 
 export async function runChatTurn(input: {
@@ -41,6 +47,8 @@ export async function runChatTurn(input: {
   /** The running summary of this chat's older messages (lib/agent/chatMemory). */
   conversationSummary?: string | null
   channel?: AgentChannel
+  /** A spoken / voice answer: never laid out by the reply formatter. */
+  voice?: boolean
   /** The chat this turn belongs to (app): a pending proposal only counts in the conversation it was made in. */
   conversationId?: string | null
   /** Tests: the confirm-gate store. Default lib/agent/confirmGate. */
@@ -76,6 +84,7 @@ export async function runChatTurn(input: {
     text,
     history,
     channel,
+    ...(input.voice ? { voice: true } : {}),
     ...(input.conversationSummary ? { conversationSummary: input.conversationSummary } : {}),
   })
   const held = result.heldApprovals ?? []
@@ -124,7 +133,9 @@ export async function runChatTurn(input: {
 
   if (receipts.length > 0) reply = [reply, ...receipts].filter(Boolean).join('\n')
   if (!reply) reply = 'Done.'
-  return { reply, listedItems: result.listedItems, held, raw: result }
+  // The layout was made for the answer as written; with receipts added it no longer matches.
+  const format = receipts.length === 0 && reply === result.replyText && result.replyFormat ? result.replyFormat : undefined
+  return { reply, listedItems: result.listedItems, held, raw: result, ...(format ? { format } : {}) }
 }
 
 /** Run the dispatcher intents; returns one receipt line each. */

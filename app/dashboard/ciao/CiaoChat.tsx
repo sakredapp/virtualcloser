@@ -35,6 +35,8 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { MiraOrb } from '@/app/components/mira/MiraOrb'
 import Markdown from '@/app/components/cxo/Markdown'
+import FormattedAnswer from '@/app/components/cxo/ReplyFormat'
+import { normalizeReplyFormat, type ReplyFormatPayload } from '@/lib/agent/replyFormatShared'
 import DailyQueueReport from '@/app/components/cxo/DailyQueueReport'
 import { useDictation } from '@/app/components/mira/useDictation'
 import { useAssistantName } from '@/app/components/AssistantNameProvider'
@@ -42,7 +44,9 @@ import { isRunQueueText, type QueueReport } from '@/lib/mira/dailyQueueShared'
 import ChatList, { type Chat, type Folder, type RunOrganize } from './ChatList'
 import './ciao-chat.css'
 
-type Msg = { id: string; role: 'user' | 'assistant'; content: string; error?: boolean; queue?: QueueReport }
+/** `format`: the reply formatting step's layout (lib/agent/replyFormatter); `content` stays the answer as written. */
+type Msg = { id: string; role: 'user' | 'assistant'; content: string; error?: boolean; queue?: QueueReport; format?: ReplyFormatPayload }
+type WireTurn = { role: 'user' | 'assistant'; content: string; format?: unknown }
 type Choice = { prompt: string; options: Array<{ label: string; value: string }> }
 
 const MAX_FIELD_PX = 200
@@ -60,8 +64,11 @@ const isTextSize = (v: unknown): v is TextSize => TEXT_SIZES.some((t) => t.id ==
 
 let seq = 0
 const nextId = () => `cc${Date.now().toString(36)}${(seq++).toString(36)}`
-const toMsgs = (rows: Array<{ role: 'user' | 'assistant'; content: string }> | undefined): Msg[] =>
-  (rows ?? []).filter((m) => m.content && (m.role === 'user' || m.role === 'assistant')).map((m) => ({ id: nextId(), role: m.role, content: m.content }))
+const toMsgs = (rows: WireTurn[] | undefined): Msg[] =>
+  (rows ?? []).filter((m) => m.content && (m.role === 'user' || m.role === 'assistant')).map((m) => {
+    const format = m.role === 'assistant' ? normalizeReplyFormat(m.format) : null
+    return { id: nextId(), role: m.role, content: m.content, ...(format ? { format } : {}) }
+  })
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean)
@@ -222,7 +229,7 @@ export default function CiaoChat({ firstName, userName, userEmail, starters }: {
   }, [])
 
   const loadCurrent = useCallback(async () => {
-    const j = (await fetch('/api/mira/ask', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).catch(() => null)) as { messages?: Array<{ role: 'user' | 'assistant'; content: string }> } | null
+    const j = (await fetch('/api/mira/ask', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).catch(() => null)) as { messages?: WireTurn[] } | null
     setMessages(toMsgs(j?.messages))
   }, [])
 
@@ -291,7 +298,7 @@ export default function CiaoChat({ firstName, userName, userEmail, starters }: {
         push({ role: 'assistant', content: `Sign in again to ask ${assistantName}.`, error: true })
         return
       }
-      const j = (await r.json().catch(() => null)) as { reply?: string; choice?: Choice; error?: string; queue?: QueueReport; new_conversation?: boolean } | null
+      const j = (await r.json().catch(() => null)) as { reply?: string; choice?: Choice; error?: string; queue?: QueueReport; new_conversation?: boolean; format?: unknown } | null
       const reply = (j?.reply ?? '').trim()
       if (!r.ok || !j) {
         push({ role: 'assistant', content: reply || 'Something hiccuped on my end. Ask me that again in a moment.', error: true })
@@ -302,7 +309,10 @@ export default function CiaoChat({ firstName, userName, userEmail, starters }: {
       if (j.queue) {
         push({ role: 'assistant', content: reply, queue: j.queue })
         router.refresh()
-      } else if (reply) push({ role: 'assistant', content: reply, error: Boolean(j.error) })
+      } else if (reply) {
+        const format = j.error ? null : normalizeReplyFormat(j.format)
+        push({ role: 'assistant', content: reply, error: Boolean(j.error), ...(format ? { format } : {}) })
+      }
       else if (j.error) push({ role: 'assistant', content: String(j.error), error: true })
       if (j.choice && Array.isArray(j.choice.options) && j.choice.options.length > 0) setChoice(j.choice)
     } catch {
@@ -339,7 +349,7 @@ export default function CiaoChat({ firstName, userName, userEmail, starters }: {
       return
     }
     setViewing(id)
-    const j = (await fetch(`/api/mira/ask?conversation=${encodeURIComponent(id)}`, { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).catch(() => null)) as { messages?: Array<{ role: 'user' | 'assistant'; content: string }> } | null
+    const j = (await fetch(`/api/mira/ask?conversation=${encodeURIComponent(id)}`, { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).catch(() => null)) as { messages?: WireTurn[] } | null
     setMessages(toMsgs(j?.messages))
   }, [busy, currentId, loadCurrent])
 
@@ -537,7 +547,7 @@ export default function CiaoChat({ firstName, userName, userEmail, starters }: {
                       ? <div key={m.id} className="ciao-msg ciao-msg--ciao" data-error=""><Markdown text={m.content} /></div>
                       : (
                         <div key={m.id} className="ciao-msg ciao-msg--ciao">
-                          <Markdown text={m.content} />
+                          {m.format ? <FormattedAnswer format={m.format} text={m.content} /> : <Markdown text={m.content} />}
                           <AnswerActions text={m.content} />
                         </div>
                       ),
