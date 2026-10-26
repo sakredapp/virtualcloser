@@ -203,7 +203,8 @@ export function normalizeChartBlock(input: unknown): ChartBlockWire | null {
 export function normalizeStepsBlock(input: unknown): StepsBlockWire | null {
   if (!isObj(input)) return null
   const items = (Array.isArray(input.items) ? input.items : [])
-    .map((x) => s(x, 240)).filter((x): x is string => !!x).slice(0, STEPS_MAX)
+    // A step is kept whole: 240 chars cut Mira's live steps mid-word in crmbuilds (2026-10-26).
+    .map((x) => s(x, 1200)).filter((x): x is string => !!x).slice(0, STEPS_MAX)
   if (items.length < 2) return null
   const out: StepsBlockWire = { type: 'steps', items }
   const heading = s(input.heading, 80)
@@ -240,9 +241,9 @@ export function normalizeReplyFormat(input: unknown): ReplyFormatPayload | null 
   if (!isObj(input)) return null
   const format = (REPLY_FORMATS as readonly string[]).includes(String(input.format)) ? (input.format as ReplyFormat) : null
   if (!format) return null
-  const say = typeof input.say === 'string' ? input.say.trim().slice(0, 400) : ''
+  const say = typeof input.say === 'string' ? input.say.trim().slice(0, 600) : ''
   if (!say) return null
-  const after = typeof input.after === 'string' ? input.after.trim().slice(0, 240) : ''
+  const after = typeof input.after === 'string' ? input.after.trim().slice(0, 400) : ''
   const blocks = (Array.isArray(input.blocks) ? input.blocks : []).map(normalizeFormatBlock).filter((b): b is FormatBlockWire => !!b).slice(0, 4)
   return { v: 1, format, say, blocks, after }
 }
@@ -577,9 +578,11 @@ export function acceptFormatter(
   if (!isObj(j)) return { ok: false, reason: 'not_json' }
   const format = (REPLY_FORMATS as readonly string[]).includes(String(j.format)) ? (j.format as ReplyFormat) : null
   if (!format) return { ok: false, reason: 'bad_format' }
-  const say = typeof j.say === 'string' ? stripMarkdown(j.say).slice(0, 400) : ''
-  const after = typeof j.after === 'string' ? stripMarkdown(j.after).slice(0, 240) : ''
+  const say = typeof j.say === 'string' ? stripMarkdown(j.say) : ''
+  const after = typeof j.after === 'string' ? stripMarkdown(j.after) : ''
   if (!say) return { ok: false, reason: 'no_words' }
+  // Too long is refused, never cut: a clipped sentence drops words the answer said.
+  if (say.length > 600 || after.length > 400) return { ok: false, reason: 'too_long' }
   const byId = new Map(input.cards.map((c) => [c.id, c]))
   const cardsUsed = [...new Set((Array.isArray(j.cards) ? j.cards : []).map(String))].filter((id) => byId.has(id)).slice(0, 3)
   const blocks: FormatBlockWire[] = cardsUsed.map((id) => byId.get(id)!.block)
