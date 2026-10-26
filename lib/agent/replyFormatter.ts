@@ -140,7 +140,9 @@ export async function formatReply(input: {
   })
   const params: AI.MessageCreateParams = {
     model,
-    max_tokens: 900,
+    // GLM may think before it answers; 700-900 ran out mid-thought in the
+    // crmbuilds eval (2026-10-26). The JSON itself is ~250 tokens.
+    max_tokens: 1600,
     temperature: 0,
     system: formatterSystemPrompt(input.assistantName),
     messages: [{ role: 'user', content: formatterUserMessage({ question: input.question, answer: input.answer, cards }) }],
