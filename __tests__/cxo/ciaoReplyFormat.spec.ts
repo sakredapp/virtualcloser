@@ -311,3 +311,18 @@ describe('FormattedAnswer', () => {
     expect(css.replace(/\/\*[\s\S]*?\*\//g, '')).not.toMatch(/#[0-9a-f]{3,8}\b/i)
   })
 })
+
+describe('no words are ever clipped (crmbuilds live QA, 2026-10-26)', () => {
+  it('a long step is kept whole', () => {
+    const long = 'Connect QuickBooks: open Integrations, press Connect next to QuickBooks and sign in as the company admin. Check: the card turns green and the Revenue page shows last month within a few minutes. If it stays grey, sign out of QuickBooks in that browser and try again.'
+    expect(long.length).toBeGreaterThan(240)
+    expect(normalizeStepsBlock({ items: [long, 'two'] })!.items[0]).toBe(long)
+  })
+  it('words that run long are refused whole, not cut', () => {
+    const answer = 'Revenue was 120 this month.'
+    const r = acceptFormatter(JSON.stringify({ format: 'plain', say: `Revenue was 120 this month. ${'More words here. '.repeat(40)}`, cards: [], visuals: [] }), { answer, cards: [], datas: [] } as any)
+    expect(r).toEqual({ ok: false, reason: 'too_long' })
+    // Control: the same reply at a normal length is accepted.
+    expect(acceptFormatter(JSON.stringify({ format: 'plain', say: 'Revenue was 120 this month.', cards: [], visuals: [] }), { answer, cards: [], datas: [] } as any).ok).toBe(true)
+  })
+})

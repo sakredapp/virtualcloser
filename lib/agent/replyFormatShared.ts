@@ -203,7 +203,8 @@ export function normalizeChartBlock(input: unknown): ChartBlockWire | null {
 export function normalizeStepsBlock(input: unknown): StepsBlockWire | null {
   if (!isObj(input)) return null
   const items = (Array.isArray(input.items) ? input.items : [])
-    .map((x) => s(x, 240)).filter((x): x is string => !!x).slice(0, STEPS_MAX)
+    // A step is kept whole: 240 chars cut Mira's live steps mid-word in crmbuilds (2026-10-26).
+    .map((x) => s(x, 1200)).filter((x): x is string => !!x).slice(0, STEPS_MAX)
   if (items.length < 2) return null
   const out: StepsBlockWire = { type: 'steps', items }
   const heading = s(input.heading, 80)
@@ -240,9 +241,9 @@ export function normalizeReplyFormat(input: unknown): ReplyFormatPayload | null 
   if (!isObj(input)) return null
   const format = (REPLY_FORMATS as readonly string[]).includes(String(input.format)) ? (input.format as ReplyFormat) : null
   if (!format) return null
-  const say = typeof input.say === 'string' ? input.say.trim().slice(0, 400) : ''
+  const say = typeof input.say === 'string' ? input.say.trim().slice(0, 600) : ''
   if (!say) return null
-  const after = typeof input.after === 'string' ? input.after.trim().slice(0, 240) : ''
+  const after = typeof input.after === 'string' ? input.after.trim().slice(0, 400) : ''
   const blocks = (Array.isArray(input.blocks) ? input.blocks : []).map(normalizeFormatBlock).filter((b): b is FormatBlockWire => !!b).slice(0, 4)
   return { v: 1, format, say, blocks, after }
 }
@@ -485,11 +486,13 @@ export function formatterSystemPrompt(assistantName: string): string {
     '1. Never add a fact. Every figure you write (in words, tiles, tables or charts) must already be in the ANSWER or in an offered card. Copy figures exactly as written.',
     '2. Never drop a correction, warning or caveat the answer makes ("31 policies, not 34", "QuickBooks did not answer", "your calendar is not connected").',
     '3. Prefer an OFFERED CARD over building your own visual: cards are drawn from the real data. Build your own visual only from figures in the answer.',
-    '4. Words: "say" is ONE or TWO short sentences that answer the question directly, the way a person would say it out loud. "after" is optional: one short line with the next step or the takeaway. Do not repeat figures a visual already shows.',
+    '4. Words: "say" is ONE or TWO short sentences that answer the question directly, the way a person would say it out loud. "after" is optional: one short line with the next step or the takeaway. Do not repeat figures a visual already shows, and do not repeat steps a steps visual lists (then "say" is one short intro line).',
+    '4b. Keep the evidence. Figures the answer gives as the REASON for its advice must stay on screen: in a card (prefer an offered card that holds them) or in the words.',
     '5. No markdown, no headings, no bullet characters in the words. No "Here is a table".',
     '6. Never say you did something (sent, booked, changed). You only format.',
     `7. Speak only as ${assistantName}. Never name an AI model, a model maker or an AI provider.`,
     '8. If the answer is short and has at most one figure, choose plain and return it nearly as is.',
+    '9. Decide quickly. Do not deliberate; this is a layout choice, not an analysis.',
     '',
     'Return ONLY this JSON, nothing else:',
     '{"format":"<one of the menu>","say":"...","cards":["<offered card id>"],"visuals":[<0-2 of your own>],"after":"..."}',
@@ -577,9 +580,11 @@ export function acceptFormatter(
   if (!isObj(j)) return { ok: false, reason: 'not_json' }
   const format = (REPLY_FORMATS as readonly string[]).includes(String(j.format)) ? (j.format as ReplyFormat) : null
   if (!format) return { ok: false, reason: 'bad_format' }
-  const say = typeof j.say === 'string' ? stripMarkdown(j.say).slice(0, 400) : ''
-  const after = typeof j.after === 'string' ? stripMarkdown(j.after).slice(0, 240) : ''
+  const say = typeof j.say === 'string' ? stripMarkdown(j.say) : ''
+  const after = typeof j.after === 'string' ? stripMarkdown(j.after) : ''
   if (!say) return { ok: false, reason: 'no_words' }
+  // Too long is refused, never cut: a clipped sentence drops words the answer said.
+  if (say.length > 600 || after.length > 400) return { ok: false, reason: 'too_long' }
   const byId = new Map(input.cards.map((c) => [c.id, c]))
   const cardsUsed = [...new Set((Array.isArray(j.cards) ? j.cards : []).map(String))].filter((id) => byId.has(id)).slice(0, 3)
   const blocks: FormatBlockWire[] = cardsUsed.map((id) => byId.get(id)!.block)
