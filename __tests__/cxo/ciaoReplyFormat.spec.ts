@@ -295,6 +295,7 @@ describe('FormattedAnswer', () => {
     // Line: first and last label only, the latest figure big.
     expect(out).toContain('cx-rf-line-figure">4<')
     expect(out).not.toContain('>Oct 12<')
+    expect((out.match(/>Oct 19</g) ?? []).length).toBe(1)
   })
   it('a table shows 5 rows then "Show all"; figures are right-aligned columns', () => {
     const out = html({ ...P, blocks: [P.blocks[2]] })

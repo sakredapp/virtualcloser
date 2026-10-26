@@ -30,10 +30,14 @@ import type {
 } from '@/lib/agent/replyFormatShared'
 import './reply-format.css'
 
-/** Semantic verdict colours, the report kit's: good green, bad red, watch = the accent (ink). */
+/**
+ * Semantic verdict colours: good is the report kit's green, watch is the
+ * accent (ink), bad is --cx-error (the CXO theme's failure red; the kit's
+ * --red-deep is charcoal on CXO, which would leave a "Problem" with no edge).
+ */
 function toneColor(t?: Tone): string {
   if (t === 'good') return 'var(--signal-good, #15803d)'
-  if (t === 'bad') return 'var(--red-deep, #dc2626)'
+  if (t === 'bad') return 'var(--cx-error, #B42318)'
   if (t === 'watch') return 'var(--cx-accent, var(--cx-ink))'
   return 'var(--cx-ink)'
 }
@@ -52,7 +56,7 @@ export function NumbersView({ block }: { block: NumbersBlockWire }) {
   const n = block.tiles.length
   return (
     <div className="cx-rf-numbers" data-testid="ciao-format-numbers">
-      <StatRow cols={n} look="kit" size="sm" mid={n >= 4 ? 2 : n} narrow={2} noStack fitChars={9}>
+      <StatRow cols={n} look="kit" size="sm" mid={n >= 4 ? 2 : n} narrow={n === 3 ? 3 : 2} noStack fitChars={8}>
         {block.tiles.map((t, i) => (
           <StatTile
             key={i}
@@ -126,13 +130,18 @@ function BarChart({ block }: { block: ChartBlockWire }) {
 function LineChart({ block }: { block: ChartBlockWire }) {
   const pts = block.points
   const last = pts[pts.length - 1]
+  // Shape only (no axis): lift the floor to just under the lowest point so a
+  // dip from $29,800 to $24,100 reads as a dip, not a flat line from zero.
+  const vals = pts.map((p) => p.value)
+  const lo = Math.min(...vals)
+  const hi = Math.max(...vals)
+  const floor = lo > 0 && hi > lo ? lo - (hi - lo) * 0.35 : 0
   return (
     <div className="cx-rf-line">
       <div className="cx-rf-line-top">
         <span className="cx-rf-line-figure">{last.display}</span>
-        <span className="cx-rf-caption">{last.label}</span>
       </div>
-      <Sparkline values={pts.map((p) => p.value)} height={64} />
+      <Sparkline values={vals.map((v) => Math.max(0, v - floor))} height={64} />
       <div className="cx-rf-line-ends">
         <span>{pts[0].label}</span>
         <span>{last.label}</span>

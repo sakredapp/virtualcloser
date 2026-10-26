@@ -79,3 +79,10 @@
 /* the answer as written, behind "Full answer" */
 .cx-rf-full { color: var(--cx-ink); font-size: 1.15em; line-height: 1.55; }
 .cx-rf-full > :last-child { margin-bottom: 0; }
+
+/* The chat styles every ul/ol/li in an answer (indent, markers, margins);
+   the cards draw their own lists, so they opt out. */
+.cx-rf-card :is(ul, ol) { margin: 0; padding: 0; list-style: none; }
+.cx-rf-card li { margin: 0; padding: 0; }
+.cx-rf-card li::marker { content: none; }
+.cx-rf-card .cx-barlist li { margin: 0; }
