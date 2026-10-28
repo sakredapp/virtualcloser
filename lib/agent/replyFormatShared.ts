@@ -57,8 +57,11 @@ export const REPLY_FORMAT_GUIDE: Record<Exclude<ReplyFormat, 'mixed'>, string> =
 
 export type Tone = 'good' | 'bad' | 'watch' | 'neutral'
 
-export type NumbersTile = { label: string; value: string; hint?: string; tone?: Tone }
-export type NumbersBlockWire = { type: 'numbers'; tiles: NumbersTile[]; caption?: string }
+/** `window`: the time span the figure covers ("today", "7 days"). A reply once set "Leads 0" beside
+ *  "Leads 2" with nothing saying which was today (Nick 2026-10-28): every tile names its window, or the
+ *  card heading names the one window they all share. */
+export type NumbersTile = { label: string; value: string; hint?: string; tone?: Tone; window?: string }
+export type NumbersBlockWire = { type: 'numbers'; tiles: NumbersTile[]; caption?: string; heading?: string }
 
 export type TableBlockWire = {
   type: 'table'
@@ -124,10 +127,12 @@ export function normalizeNumbersBlock(input: unknown): NumbersBlockWire | null {
   const tiles: NumbersTile[] = []
   for (const t of Array.isArray(input.tiles) ? input.tiles : []) {
     if (!isObj(t)) continue
-    const label = s(t.label, 40)
+    const split = splitTileWindow({ label: s(t.label, 40) ?? '', window: s(t.window, 20) })
+    const label = split.label
     const value = s(t.value, 32)
     if (!label || !value) continue
     const tile: NumbersTile = { label, value }
+    if (split.window) tile.window = split.window
     const hint = s(t.hint, 60)
     if (hint) tile.hint = hint
     const tone = toneOf(t.tone)
@@ -139,7 +144,27 @@ export function normalizeNumbersBlock(input: unknown): NumbersBlockWire | null {
   const out: NumbersBlockWire = { type: 'numbers', tiles }
   const caption = s(input.caption, 160)
   if (caption) out.caption = caption
+  const heading = s(input.heading, 60)
+  if (heading) out.heading = heading
   return out
+}
+
+/** Bracketed words that name a time span, not a unit ("7 days", "today", "MTD", "this week"). */
+const WINDOW_WORDS = /^(today|yesterday|mtd|ytd|qtd|wtd|all time|lifetime|(this|last) (week|month|quarter|year)|((last|past) )?\d+\s*(d|days?|h|hrs?|hours?|wks?|weeks?|mos?|months?))$/i
+
+/** "Leads (7 days)" -> label "Leads", window "7 days". Units ("Cost (USD)") stay in the label; an explicit window wins. */
+export function splitTileWindow(t: { label: string; window?: string | null }): { label: string; window?: string } {
+  if (t.window) return { label: t.label, window: t.window }
+  const m = /^(.*\S)\s*\(([^()]{1,20})\)$/.exec(t.label)
+  if (m && WINDOW_WORDS.test(m[2].trim())) return { label: m[1], window: m[2].trim() }
+  return { label: t.label }
+}
+
+/** The one window every tile shares (case-insensitive), or null when they differ or a tile has none. */
+export function sharedTileWindow(tiles: { label: string; window?: string }[]): string | null {
+  const ws = tiles.map((t) => splitTileWindow(t).window?.toLowerCase() ?? '')
+  if (!ws.length || ws.some((w) => !w) || new Set(ws).size !== 1) return null
+  return ws[0]
 }
 
 export function normalizeTableBlock(input: unknown): TableBlockWire | null {
@@ -493,11 +518,12 @@ export function formatterSystemPrompt(assistantName: string): string {
     `7. Speak only as ${assistantName}. Never name an AI model, a model maker or an AI provider.`,
     '8. If the answer is short and has at most one figure, choose plain and return it nearly as is.',
     '9. Decide quickly. Do not deliberate; this is a layout choice, not an analysis.',
+    '10. Every number tile names its time window when the answer gives one ("window":"today" or "7 days"). Two tiles with the same label and different windows MUST each carry their window. When all tiles share one window, put it in the numbers "title" instead.',
     '',
     'Return ONLY this JSON, nothing else:',
     '{"format":"<one of the menu>","say":"...","cards":["<offered card id>"],"visuals":[<0-2 of your own>],"after":"..."}',
     'Your own visuals, each one of:',
-    '{"kind":"numbers","tiles":[{"label":"Premium","value":"$48,200","hint":"optional"}]}',
+    '{"kind":"numbers","title":"optional shared window, e.g. This week","tiles":[{"label":"Premium","value":"$48,200","hint":"optional","window":"optional, e.g. 7 days"}]}',
     '{"kind":"table","columns":["Producer","Premium","Policies"],"rows":[["Dana Reyes","$12,400","9"]]}',
     '{"kind":"bar","title":"...","items":[{"label":"...","value":12400,"display":"$12,400"}]}',
     '{"kind":"line","title":"...","items":[{"label":"Oct 12","value":5,"display":"5"}]}',
@@ -540,7 +566,7 @@ function ownVisual(v: unknown): FormatBlockWire | null {
   if (!isObj(v)) return null
   const items = Array.isArray(v.items) ? v.items : []
   switch (v.kind) {
-    case 'numbers': return normalizeNumbersBlock({ tiles: v.tiles })
+    case 'numbers': return normalizeNumbersBlock({ tiles: v.tiles, heading: v.title })
     case 'table': return normalizeTableBlock({ columns: v.columns, rows: v.rows, heading: v.title })
     case 'bar': case 'line': case 'split':
       return normalizeChartBlock({ kind: v.kind, heading: v.title, points: items.map((p: unknown) => (isObj(p) ? { label: p.label, value: p.value, display: p.display ?? p.value } : null)) })

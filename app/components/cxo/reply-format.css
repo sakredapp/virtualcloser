@@ -18,6 +18,11 @@
 
 /* numbers: the report kit's StatRow, tightened for a chat column */
 .cx-rf-numbers { min-width: 0; display: flex; flex-direction: column; gap: 0.4em; }
+/* Reply tiles read lighter than report tiles (Nick 2026-10-28: "tighter, sleeker,
+   thinner font"); scoped here so the report kit elsewhere keeps its weight. */
+.cx-rf-numbers .cx-stat-row[data-look='kit'] .cx-stat-label { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cx-rf-numbers .cx-stat-row[data-look='kit'] .cx-stat-value { font-weight: 500; font-variant-numeric: tabular-nums; }
+.cx-rf-numbers .cx-stat-row[data-look='kit'] .cx-stat-sub { white-space: normal; overflow-wrap: anywhere; }
 
 /* table */
 .cx-rf-table-scroll { overflow-x: auto; max-width: 100%; -webkit-overflow-scrolling: touch; margin: 0 -2px; }

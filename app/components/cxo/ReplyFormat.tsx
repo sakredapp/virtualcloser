@@ -25,6 +25,7 @@ import { useState } from 'react'
 import { BarList, Sparkline } from './charts'
 import { DotChip, StatRow, StatTile, WhyDetails } from './report-kit'
 import Markdown from './Markdown'
+import { sharedTileWindow } from '@/lib/agent/replyFormatShared'
 import type {
   CalloutBlockWire, ChartBlockWire, FormatBlockWire, NumbersBlockWire, ReplyFormatPayload, StepsBlockWire, TableBlockWire, Tone,
 } from '@/lib/agent/replyFormatShared'
@@ -52,20 +53,35 @@ function Shell({ kind, heading, caption, children }: { kind: string; heading?: s
   )
 }
 
+const cap = (w: string) => w.charAt(0).toUpperCase() + w.slice(1)
+
+/**
+ * Every figure says what span it covers (Nick 2026-10-28: "Leads 0" sat beside
+ * "Leads 2" with nothing saying which was today). One shared window becomes the
+ * card's heading; mixed windows go on each tile's sub line, before any hint.
+ */
 export function NumbersView({ block }: { block: NumbersBlockWire }) {
   const n = block.tiles.length
+  const shared = sharedTileWindow(block.tiles)
+  const heading = block.heading ?? (shared ? cap(shared) : undefined)
   return (
     <div className="cx-rf-numbers" data-testid="ciao-format-numbers">
+      {heading && <h4 className="cx-rf-heading" data-testid="ciao-format-numbers-heading">{heading}</h4>}
       <StatRow cols={n} look="kit" size="sm" mid={n >= 4 ? 2 : n} narrow={n === 3 ? 3 : 2} noStack fitChars={8}>
-        {block.tiles.map((t, i) => (
-          <StatTile
-            key={i}
-            label={t.label}
-            value={t.value}
-            sub={t.hint}
-            verdict={t.tone === 'good' || t.tone === 'bad' ? t.tone : undefined}
-          />
-        ))}
+        {block.tiles.map((t, i) => {
+          const tw = shared ? undefined : t.window
+          const sub = [tw ? cap(tw) : '', t.hint ?? ''].filter(Boolean).join(' · ') || undefined
+          return (
+            <StatTile
+              key={i}
+              label={t.label}
+              value={t.value}
+              sub={sub}
+              title={sub ? `${t.label}: ${t.value} (${sub})` : undefined}
+              verdict={t.tone === 'good' || t.tone === 'bad' ? t.tone : undefined}
+            />
+          )
+        })}
       </StatRow>
       {block.caption && <p className="cx-rf-caption">{block.caption}</p>}
     </div>
