@@ -20,7 +20,8 @@ import type { Member } from '@/types'
 import type { Tenant } from '@/lib/tenant'
 import {
   REPLY_FORMATS, acceptFormatter, dataCards, figureAllowed, figuresAllowed, figuresIn, formatterSystemPrompt,
-  normalizeChartBlock, normalizeReplyFormat, normalizeStepsBlock, normalizeTableBlock, unknownFigures, wantsModelFormat,
+  normalizeChartBlock, normalizeNumbersBlock, normalizeReplyFormat, normalizeStepsBlock, normalizeTableBlock, sharedTileWindow, splitTileWindow,
+  unknownFigures, wantsModelFormat,
   type ReplyFormatPayload,
 } from '@/lib/agent/replyFormatShared'
 import { collectReads, formatReply, replyFormatterEnabled, type CreateFn } from '@/lib/agent/replyFormatter'
@@ -309,6 +310,45 @@ describe('FormattedAnswer', () => {
     const css = readFileSync(join(__dirname, '..', '..', 'app/components/cxo/reply-format.css'), 'utf8')
     expect(css).toMatch(/\.cx-rf-table-scroll \{[^}]*overflow-x: auto/)
     expect(css.replace(/\/\*[\s\S]*?\*\//g, '')).not.toMatch(/#[0-9a-f]{3,8}\b/i)
+  })
+})
+
+describe('every number tile says its time window (Nick 2026-10-28)', () => {
+  const html = (p: ReplyFormatPayload) => renderToStaticMarkup(createElement(FormattedAnswer, { format: p, text: '' }))
+  it('splits a window out of the label, keeps units, and an explicit window wins', () => {
+    expect(splitTileWindow({ label: 'Leads (7 days)' })).toEqual({ label: 'Leads', window: '7 days' })
+    expect(splitTileWindow({ label: 'Leads (today)' })).toEqual({ label: 'Leads', window: 'today' })
+    expect(splitTileWindow({ label: 'Cost (USD)' })).toEqual({ label: 'Cost (USD)' })
+    expect(splitTileWindow({ label: 'Leads (today)', window: 'MTD' }).window).toBe('MTD')
+  })
+  it('a shared window is found only when every tile has the same one', () => {
+    expect(sharedTileWindow([{ label: 'A', value: '1', window: 'This week' }, { label: 'B', value: '2', window: 'this week' }])).toBe('this week')
+    expect(sharedTileWindow([{ label: 'A', value: '1', window: 'today' }, { label: 'B', value: '2', window: '7 days' }])).toBeNull()
+    expect(sharedTileWindow([{ label: 'A', value: '1', window: 'today' }, { label: 'B', value: '2' }])).toBeNull()
+  })
+  it('the normalizer keeps the window and the heading', () => {
+    const b = normalizeNumbersBlock({ heading: 'This week', tiles: [{ label: 'Leads (7 days)', value: '2' }, { label: 'Calls', value: '4' }] })!
+    expect(b.heading).toBe('This week')
+    expect(b.tiles[0]).toMatchObject({ label: 'Leads', value: '2', window: '7 days' })
+  })
+  it('the visual "title" becomes the numbers heading', () => {
+    const answer = 'This week leads were 2 and calls were 4.'
+    const r = acceptFormatter(JSON.stringify({
+      format: 'numbers', say: 'Leads were 2 and calls were 4.', cards: [],
+      visuals: [{ kind: 'numbers', title: 'This week', tiles: [{ label: 'Leads', value: '2' }, { label: 'Calls', value: '4' }] }],
+    }), { answer, cards: [], datas: [] } as any)
+    expect(r.ok).toBe(true)
+    const nb = r.ok ? (r.result.blocks.find((b) => b.type === 'numbers') as any) : null
+    expect(nb?.heading).toBe('This week')
+  })
+  it('mixed windows show on each tile; one shared window becomes the heading', () => {
+    const mixed = html({ v: 1, format: 'numbers', say: 'x', blocks: [{ type: 'numbers', tiles: [{ label: 'Leads', value: '0', window: 'today' }, { label: 'Leads', value: '2', window: '7 days' }] }] } as any)
+    expect(mixed).toContain('Today')
+    expect(mixed).toContain('7 days')
+    expect(mixed).not.toContain('ciao-format-numbers-heading')
+    const shared = html({ v: 1, format: 'numbers', say: 'x', blocks: [{ type: 'numbers', tiles: [{ label: 'Leads', value: '0', window: 'this week' }, { label: 'Calls', value: '4', window: 'this week' }] }] } as any)
+    expect(shared).toContain('data-testid="ciao-format-numbers-heading">This week<')
+    expect((shared.match(/This week/gi) ?? []).length).toBe(1)
   })
 })
 
