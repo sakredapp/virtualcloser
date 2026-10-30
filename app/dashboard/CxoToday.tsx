@@ -25,6 +25,7 @@ import { listApprovals, listPlaudPending } from '@/lib/ops/approvals'
 import DailyQueueReport from '@/app/components/cxo/DailyQueueReport'
 import WeeklyStatusCard from '@/app/components/cxo/WeeklyStatusCard'
 import DayOneCard from '@/app/components/cxo/DayOneCard'
+import FirstReadCard from '@/app/components/cxo/FirstReadCard'
 import LeadershipAgendaCard from '@/app/components/cxo/LeadershipAgendaCard'
 import BoardUpdateCard from '@/app/components/cxo/BoardUpdateCard'
 import type { QueueReport } from '@/lib/mira/dailyQueueShared'
@@ -118,6 +119,7 @@ export default async function CxoToday({ tenantId, memberId, firstName, ownerNam
       {!ownerName && (
         <div className="cx-today-strip">
           <DayOneCard />
+          <FirstReadCard />
         </div>
       )}
 
