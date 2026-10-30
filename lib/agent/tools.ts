@@ -68,6 +68,7 @@ import { APPROVAL_TOOL_DEFS, CXO_SELF_SERVE_TOOL_HANDLERS, MY_QUOTA_TOOL, SET_MY
 import { cxoEmployeeOps, inboxAllowed } from '@/lib/cxoFeatures'
 import { SEARCH_COMPANY_TOOL, SEARCH_COMPANY_TOOL_NO_EMAIL, handleSearchCompany, searchCompanyEnabled } from '@/lib/knowledge/searchTool'
 import { filterToolDefs, isEmployeeCaller } from '@/lib/agent/access'
+import { isAtLeast } from '@/lib/permissions'
 import { CXO_NO_SALES_SAY, CXO_SALES_TOOL_NAMES, cxoIntentAllowed } from '@/lib/agent/cxoNoSales'
 import { addMemberMemory, asMemoryKind, forgetLastMemberMemory, forgetMemberMemory, listMemberMemory } from '@/lib/agent/memberMemory'
 import { tuneCxoToolDefs, tuneSelfToolDefs, whatCanYouDoText, WHAT_CAN_YOU_DO_TOOL } from '@/lib/agent/cxoCatalog'
@@ -1130,7 +1131,15 @@ async function handle_report_issue(ctx: AgentContext, args: Record<string, unkno
 
 // ── Payroll / commissions (CXO) ───────────────────────────────────────────
 
+// Same gate as the Accounting page and /api/payroll/assistant: admin and up.
+// Without it a manager or assistant could read everyone's commissions and
+// carrier deposits through Ciao (leak audit 2026-10-29).
+export const PAYROLL_NOT_ALLOWED = 'Commissions and carrier deposits are for admins and the owner. Say that in one line; give no amounts.'
+
 async function handle_payroll(ctx: AgentContext, args: Record<string, unknown>): Promise<ToolHandlerResult> {
+  if (!ctx.caller || !isAtLeast(ctx.caller.role, 'admin')) {
+    return { text: asJson({ ok: false, say: PAYROLL_NOT_ALLOWED }) }
+  }
   const view = String(args.view ?? 'summary')
   const agentFilter = typeof args.agent === 'string' ? args.agent.trim().toLowerCase() : ''
   const [commissions, deposits] = await Promise.all([
