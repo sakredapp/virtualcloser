@@ -611,7 +611,9 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
   // Safety net: if the bot said it couldn't do something, detect the missing
   // capability the user wanted and log it (deduped). Backstops report_issue.
   // Not for employees: the gap detector files a rule into the org memory.
-  if (!result.error && !input.skipGapDetect && !isEmployeeCaller(input.caller, input.tenant)) await maybeDetectGap(input, result.replyText)
+  // Not after a role refusal either: "you can't see payroll" is a permission, and
+  // filing it would teach the org memory that payroll does not exist.
+  if (!result.error && !meta.roleRefused && !input.skipGapDetect && !isEmployeeCaller(input.caller, input.tenant)) await maybeDetectGap(input, result.replyText)
   return result
 }
 
@@ -655,7 +657,21 @@ function prefetchReadBatch(toolUses: AI.ToolUseBlock[], ctx: AgentContext, seen:
 }
 
 /** What the inner run tells the wrapper. */
-type InnerMeta = { aboutAskOnce?: boolean }
+// roleRefused: a tool was refused for the caller's role this turn. That is a
+// permission, not a missing feature, so the gap detector must not file it as a
+// tenant-wide "known limitation" (QA of #156, 2026-10-30: one manager asking
+// for payroll made Ciao stop answering payroll for the admins too).
+type InnerMeta = { aboutAskOnce?: boolean; roleRefused?: boolean }
+
+/** A tool result that is a role/permission refusal (`"refused": true`). */
+export function isRoleRefusal(text: string): boolean {
+  try {
+    const o = JSON.parse(text) as { refused?: unknown }
+    return o?.refused === true
+  } catch {
+    return false
+  }
+}
 
 async function runAgentInner(input: RunAgentInput, held: string[], proposals: PendingAction[] = [], meta: InnerMeta = {}): Promise<RunAgentResult> {
   if (!hasAIKey()) {
@@ -1006,6 +1022,7 @@ async function runAgentInner(input: RunAgentInput, held: string[], proposals: Pe
       // caller's role (e.g. an employee forging a payroll call) is refused.
       const refusal = authorizeToolCall(tu.name, ctx)
       if (refusal) {
+        meta.roleRefused = true
         auditRefusal(ctx, tu.name, (tu.input ?? {}) as Record<string, unknown>)
         toolResults.push({ type: 'tool_result', tool_use_id: tu.id, content: refusal.text, is_error: true })
         continue
@@ -1048,6 +1065,7 @@ async function runAgentInner(input: RunAgentInput, held: string[], proposals: Pe
           content: result.text,
         })
         sourceCalls.push({ name: tu.name, input: args, result: result.text })
+        if (isRoleRefusal(result.text)) meta.roleRefused = true
         if (actionSucceeded(tu.name, (tu.input ?? {}) as Record<string, unknown>, result.text)) actionDone = true
         if (result.intents && result.intents.length > 0) {
           collectedIntents.push(...result.intents)

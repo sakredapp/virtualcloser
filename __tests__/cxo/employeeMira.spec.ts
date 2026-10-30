@@ -525,3 +525,29 @@ describe('a name that is not a partner falls back to coworkers (QA 2026-10-18, g
     expect(JSON.stringify(r)).toContain('partner or coworker called')
   })
 })
+
+// A role refusal is a permission, not a missing feature (QA of #156, 2026-10-30):
+// filing it as a gap wrote a tenant-wide "known limitation" rule that made Ciao
+// stop answering payroll for the admins as well.
+describe('a role refusal never becomes a capability gap', () => {
+  const MANAGER = member('mgr-1', 'manager', 'Mona')
+  const turn = (content: unknown[], stop = 'tool_use') => ({ model: 'glm', stop_reason: stop, usage: { input_tokens: 10, output_tokens: 5 }, content })
+
+  it('a manager refused payroll does not file a gap', async () => {
+    aiScript.push(
+      turn([{ type: 'tool_use', id: 'p1', name: 'payroll', input: { view: 'summary' } }]),
+      turn([{ type: 'text', text: "Commissions are for admins and the owner, I can't see those figures for your login." }], 'end_turn'),
+    )
+    const res = await runAgent({ tenant: TENANT, caller: MANAGER, text: 'who is owed commission' })
+    expect(res.error).toBeUndefined()
+    const last = aiCalls[1].messages[aiCalls[1].messages.length - 1] as { content: Array<{ content: string }> }
+    expect(JSON.parse(last.content[0].content)).toMatchObject({ ok: false, refused: true, error: 'not_allowed_for_role' })
+    expect(gapDetect).not.toHaveBeenCalled()
+  })
+
+  it('an exec told "I cannot" with no refusal still files a gap (the safety net stays on)', async () => {
+    aiScript.push(turn([{ type: 'text', text: "I can't export that to a spreadsheet yet." }], 'end_turn'))
+    await runAgent({ tenant: TENANT, caller: ELLEN, text: 'export payroll to a sheet' })
+    expect(gapDetect).toHaveBeenCalledTimes(1)
+  })
+})
