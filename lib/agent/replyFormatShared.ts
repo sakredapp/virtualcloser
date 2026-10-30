@@ -161,7 +161,7 @@ export function splitTileWindow(t: { label: string; window?: string | null }): {
 }
 
 /** The one window every tile shares (case-insensitive), or null when they differ or a tile has none. */
-export function sharedTileWindow(tiles: { label: string; window?: string }[]): string | null {
+export function sharedTileWindow(tiles: { label: string; value?: string; window?: string }[]): string | null {
   const ws = tiles.map((t) => splitTileWindow(t).window?.toLowerCase() ?? '')
   if (!ws.length || ws.some((w) => !w) || new Set(ws).size !== 1) return null
   return ws[0]
