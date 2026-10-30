@@ -1138,7 +1138,7 @@ export const PAYROLL_NOT_ALLOWED = 'Commissions and carrier deposits are for adm
 
 async function handle_payroll(ctx: AgentContext, args: Record<string, unknown>): Promise<ToolHandlerResult> {
   if (!ctx.caller || !isAtLeast(ctx.caller.role, 'admin')) {
-    return { text: asJson({ ok: false, say: PAYROLL_NOT_ALLOWED }) }
+    return { text: asJson({ ok: false, refused: true, error: 'not_allowed_for_role', say: PAYROLL_NOT_ALLOWED }) }
   }
   const view = String(args.view ?? 'summary')
   const agentFilter = typeof args.agent === 'string' ? args.agent.trim().toLowerCase() : ''
