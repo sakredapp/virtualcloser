@@ -7,12 +7,12 @@
  *                                       neither of which has a bearer-token box)
  *
  * Resolves to the key's account (tenant) and member. The member is the one
- * who made the key; if that member is gone, the account owner stands in.
+ * who made the key; if that member is gone, the key is refused.
  */
 
 import { supabase } from '@/lib/supabase'
 import type { Tenant } from '@/lib/tenant'
-import { getMemberById, getOwnerMember } from '@/lib/members'
+import { getMemberById } from '@/lib/members'
 import type { Member } from '@/types'
 import { findLiveMcpToken, MCP_TOKEN_RE } from './tokens'
 import { isEmployeeOnlyMember } from '@/lib/employees/access'
@@ -62,16 +62,15 @@ export async function requireMcpAuth(req: Request): Promise<McpAuthContext> {
   if (error) throw new Error(`reps lookup: ${error.message}`)
   if (!tenant) throw new McpUnauthorized('The account behind this key is no longer active.')
 
-  let member: Member | null = null
-  if (row.member_id) {
-    const m = await getMemberById(row.member_id)
-    // A key made by a member who has left (or moved) dies with them. It never
-    // falls through to the owner's data.
-    if (!m || !m.is_active || m.rep_id !== row.rep_id) throw new McpUnauthorized('The person behind this key no longer has access.')
-    member = m
-  }
-  if (!member) member = await getOwnerMember(row.rep_id)
-  if (!member) throw new McpUnauthorized('No active member for this key.')
+  // Every key is made by a signed-in member (app/api/me/mcp-token), so a key
+  // with no member_id means its member row was deleted (mcp_tokens.member_id is
+  // on delete set null). It dies with them and never takes the owner's rights
+  // (security audit 2026-10-29 finding 6).
+  if (!row.member_id) throw new McpUnauthorized('The person behind this key no longer has access.')
+  const member: Member | null = await getMemberById(row.member_id)
+  // A key made by a member who has left (or moved) dies with them. It never
+  // falls through to the owner's data.
+  if (!member || !member.is_active || member.rep_id !== row.rep_id) throw new McpUnauthorized('The person behind this key no longer has access.')
   // Employee logins see their own page only; they never get the org's data over MCP.
   if (isEmployeeOnlyMember(member, tenant as Tenant)) throw new McpUnauthorized('This login can only see its own page.')
 

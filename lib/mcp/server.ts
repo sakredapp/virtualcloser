@@ -666,6 +666,20 @@ export function buildMcpServer(auth: McpAuthContext, opts: McpBuildOptions = {})
 
   const employeeArg = z.string().min(1).describe('The employee: first name, full name or email. If several match, the result lists candidates: ask which.')
 
+  // Employee records, quotas and time off are the whole company's: owner or
+  // admin only, the same rule as the dashboard layout below (security audit
+  // 2026-10-29 finding 2: a manager or assistant key could change any record).
+  // Refused before any handler runs, and the refusal is audited.
+  const hrAllowed = allowed('owner_admin', auth.member, auth.tenant)
+  const HR_REFUSAL = 'Not done. Only the owner or an admin can change employee records, quotas or time off.'
+  const hrWrite = (name: 'set_employee_quota' | 'update_employee' | 'log_time_off', rawArgs: Record<string, unknown>) =>
+    hrAllowed
+      ? viaMira(name, rawArgs)
+      : run(async () => {
+          await mcpAudit(name, withoutConfirm(rawArgs), 'refused')
+          throw new Error(HR_REFUSAL)
+        })
+
   server.registerTool(
     'employee_quota_status',
     {
@@ -681,7 +695,7 @@ export function buildMcpServer(auth: McpAuthContext, opts: McpBuildOptions = {})
     'set_employee_quota',
     {
       title: 'Set an employee quota',
-      description: 'Create or change one quota: "set Joe\'s Q1 quota to 40 policies". type: revenue | premium | policies | recruits | appointments | custom (custom needs name). period: month | quarter | year or a key like 2027-Q1. actual = progress so far, only when given. from_book fills progress from the book (premium/policies).',
+      description: 'Owner or admin only. Create or change one quota: "set Joe\'s Q1 quota to 40 policies". type: revenue | premium | policies | recruits | appointments | custom (custom needs name). period: month | quarter | year or a key like 2027-Q1. actual = progress so far, only when given. from_book fills progress from the book (premium/policies).',
       inputSchema: {
         employee: employeeArg,
         type: z.enum(['revenue', 'premium', 'policies', 'recruits', 'appointments', 'custom']).optional(),
@@ -693,14 +707,14 @@ export function buildMcpServer(auth: McpAuthContext, opts: McpBuildOptions = {})
       },
       annotations: { readOnlyHint: false },
     },
-    async (args) => viaMira('set_employee_quota', args),
+    async (args) => hrWrite('set_employee_quota', args),
   )
 
   server.registerTool(
     'update_employee',
     {
       title: 'Update an employee',
-      description: 'Change an employee\'s basics: title, department, manager, start_date, email, hours_per_week, PTO, book_name. base_salary and hourly_rate only for members who may see comp; the reply says salary saved and never repeats the amount. Pass only what changes.',
+      description: 'Owner or admin only. Change an employee\'s basics: title, department, manager, start_date, email, hours_per_week, PTO, book_name. base_salary and hourly_rate only for members who may see comp; the reply says salary saved and never repeats the amount. Pass only what changes.',
       inputSchema: {
         employee: employeeArg,
         title: z.string().max(120).optional(),
@@ -718,14 +732,14 @@ export function buildMcpServer(auth: McpAuthContext, opts: McpBuildOptions = {})
       },
       annotations: { readOnlyHint: false },
     },
-    async (args) => viaMira('update_employee', args),
+    async (args) => hrWrite('update_employee', args),
   )
 
   server.registerTool(
     'log_time_off',
     {
       title: 'Log time off',
-      description: 'Log vacation, sick, personal or other time off for an employee. Dates YYYY-MM-DD; days defaults to weekdays in the range.',
+      description: 'Owner or admin only. Log vacation, sick, personal or other time off for an employee. Dates YYYY-MM-DD; days defaults to weekdays in the range.',
       inputSchema: {
         employee: employeeArg,
         start_date: z.string().max(20),
@@ -736,7 +750,7 @@ export function buildMcpServer(auth: McpAuthContext, opts: McpBuildOptions = {})
       },
       annotations: { readOnlyHint: false },
     },
-    async (args) => viaMira('log_time_off', args),
+    async (args) => hrWrite('log_time_off', args),
   )
 
   // ── Dashboard layout (write) ────────────────────────────────────────────
